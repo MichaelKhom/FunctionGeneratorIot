@@ -183,7 +183,6 @@ do                          \
 
 struct MAIN_STRUCTURE {
 	uint32_t frequency_A, frequency_B;
-	uint16_t phase_A, phase_B;
 	uint16_t amplitude_A, amplitude_B;
 	enum MODES output_type_A, output_type_B;
 	uint16_t bias_A, bias_B;

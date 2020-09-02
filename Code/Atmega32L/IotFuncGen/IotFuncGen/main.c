@@ -544,12 +544,19 @@ int main() {
 	
 	Screen display;
 	UI displayParameters;
-	uint8_t displayPointer;
-	volatile EncoderState encoderState = NONE;
+	EncoderState encoderState = NONE;
+	static DisplayPointer displayPointer;
 	bool switchState = false;
-	bool pointerIsActive = false;
-	bool switchPressed = true;
 	
+	static bool switchPressed = false;
+	static bool parameterSelectionActivated = false;
+	static bool displayPointerActivated = false;
+	static bool functionalityChanged = false;
+	
+	typedef enum DisplayPointers { PTR_NULL, PTR_TYPE_A, PTR_FREQ_A, PTR_BIAS_A, PTR_AMP_A, PTR_TYPE_B, PTR_FREQ_B, PTR_BIAS_B, PTR_AMP_B,
+								   PTR_SETT,  PTR_SHUTDOWN, } DisplayPointer;
+		
+
 	Init_Device();
 	Init_UI();
 	sei();
@@ -558,8 +565,7 @@ int main() {
 	print_LCD_line("	 Loading...     ", LCD_LINE_2);
 	
 	/* Initialization sequence */
-	display.currentScreen = CH_A;
-	display.mainScreen = MAIN_SCREEN;
+	display.mainScreen = MAIN_SCREEN_A;
 	display.stateChanged = false;
 	
 	sprintf(displayParameters.frequency_A, "%d", FUNCGEN.frequency_A);
@@ -576,46 +582,385 @@ int main() {
 	if (FUNCGEN.bias_B_sign == POSITIVE) displayParameters.bias_B_sign = '+';
 	else displayParameters.bias_B_sign = '-';
 	_delay_ms(1500);	
-	print_LCD_screen(display.mainScreen, display.currentScreen, displayParameters);
+	print_LCD_screen(display.mainScreen, displayParameters);
 	
 	while(1) {
-		if (display.stateChanged) {
-			display.stateChanged = false;
-		}
-			
+		
 		encoderState = poll_encoder();
 		switchState = poll_switch();
 		
-		if (switchState) {
-			pointerIsActive != pointerIsActive;
-			switchPressed = true;
-		}
-		
-		if (!pointerIsActive) {
+		if (!displayPointerActivated && !parameterSelectionActivated) {
 			switch(display.mainScreen) {
-				case MAIN_SCREEN:
+				case MAIN_SCREEN_A:
 					if (encoderState == CW) {
-						if (display.currentScreen == CH_A) {
-							display.currentScreen == CH_B;
-							display.stateChanged = true;
-						}
-						else if (display.currentScreen == CH_B) {
-							display.currentScreen == SETT;
-							display.mainScreen = PARAMS_SCREEN;
-							display.stateChanged = true;
-						}
+						display.mainScreen = MAIN_SCEEN_B;
+						display.stateChanged = true;
 					}
+					
 					else if (encoderState == CCW) {
-						if (display.currentScreen == CH_B) {
-							display.currentScreen == CH_A;
-							display.stateChanged = true;
-						}
-						else if (display.currentScreen == SETT) {
-							display.currentScreen == CH_B;
-							display.mainScreen = MAIN_SCREEN;
-							display.stateChanged = true;
-						}
+						display.mainScreen = PARAMS_SCREEN;
+						display.stateChanged = true;
 					}
+					else if (switchState) {
+						displayPointerActivated = true;
+						displayPointer = PTR_TYPE_A;
+					}
+					break;
+					
+				case MAIN_SCEEN_B:
+					if (encoderState == CW) {
+						display.mainScreen = PARAMS_SCREEN;
+						display.stateChanged = true;
+					}
+					
+					else if (encoderState == CCW) {
+						display.mainScreen = MAIN_SCREEN_A;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						displayPointerActivated = true;
+						displayPointer = PTR_TYPE_B;
+					}
+					break;
+					
+				case PARAMS_SCREEN:
+					if (encoderState == CW) {
+						display.mainScreen = MAIN_SCREEN_A;
+						display.stateChanged = true;
+					}
+					
+					else if (encoderState == CCW) {
+						display.mainScreen = MAIN_SCEEN_B;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						displayPointerActivated = true;
+						displayPointer = PTR_SETT;
+						display.stateChanged = true;
+					}
+			
+					break;					
+			}
+		}
+		else if (displayPointerActivated && !parameterSelectionActivated) { 
+			switch(displayPointer) {
+				case PTR_NULL: break;
+				/* Channel A Block */
+				case PTR_TYPE_A: 
+					if (encoderState == CW) displayPointer = PTR_AMP_A;
+					else if (encoderState == CCW) displayPointer = PTR_BIAS_A;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				case PTR_AMP_A:
+					if (encoderState == CW) displayPointer = PTR_FREQ_A;
+					else if (encoderState == CCW) displayPointer = PTR_TYPE_A;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				case PTR_FREQ_A:
+					if (encoderState == CW) displayPointer = PTR_BIAS_A;
+					else if (encoderState == CCW) displayPointer = PTR_AMP_A;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				case PTR_BIAS_A:
+					if (encoderState == CW) displayPointer = PTR_TYPE_A;
+					else if (encoderState == CCW) displayPointer = PTR_FREQ_A;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				/* Channel B Block */
+				case PTR_TYPE_B:
+					if (encoderState == CW) displayPointer = PTR_AMP_B;
+					else if (encoderState == CCW) displayPointer = PTR_BIAS_B;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				case PTR_AMP_B:
+					if (encoderState == CW) displayPointer = PTR_FREQ_B;
+					else if (encoderState == CCW) displayPointer = PTR_TYPE_B;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				case PTR_FREQ_B:
+					if (encoderState == CW) displayPointer = PTR_BIAS_B;
+					else if (encoderState == CCW) displayPointer = PTR_AMP_B;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+				case PTR_BIAS_B:
+					if (encoderState == CW) displayPointer = PTR_TYPE_B;
+					else if (encoderState == CCW) displayPointer = PTR_FREQ_B;
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = true;
+						display.stateChanged = true;
+					}
+					break;
+			}
+		}
+		else if (!displayPointerActivated && parameterSelectionActivated) {
+			switch(displayPointer) {
+				
+				case PTR_NULL: break;
+				
+				case PTR_TYPE_A:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					switch(FUNCGEN.output_type_A) {
+						case OFF: FUNCGEN.output_type_A = SINE; break;
+						case SINE: FUNCGEN.output_type_A = TRIANGLE; break;
+						case TRIANGLE: FUNCGEN.output_type_A = SQUARE; break;
+						case SQUARE: FUNCGEN.output_type_A = DC; break;
+						case DC: default: FUNCGEN.output_type_A = OFF; break;
+					}
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					switch(FUNCGEN.output_type_A) {
+						case OFF: FUNCGEN.output_type_A = DC; break;
+						case SINE: FUNCGEN.output_type_A = OFF; break;
+						case TRIANGLE: FUNCGEN.output_type_A = SINE; break;
+						case SQUARE: FUNCGEN.output_type_A = TRIANGLE; break;
+						case DC: default: FUNCGEN.output_type_A = SQUARE; break;
+					}
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+					
+				case PTR_AMP_A:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.amplitude_A >= 700) FUNCGEN.amplitude_A = 700;
+					else FUNCGEN.amplitude_A++;
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.amplitude_A <= 0) FUNCGEN.amplitude_A = 0;
+					else FUNCGEN.amplitude_A--;
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+
+				case PTR_FREQ_A:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.frequency_A >= 1000000) FUNCGEN.frequency_A = 1000000;
+					else FUNCGEN.frequency_A++;
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.frequency_A <= 0) FUNCGEN.frequency_A = 0;
+					else FUNCGEN.frequency_A--;
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+				
+				case PTR_BIAS_A:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.bias_A_sign == POSITIVE) {
+						if (FUNCGEN.bias_A >= 3300) FUNCGEN.bias_A = 3300;
+						else FUNCGEN.bias_A++;
+					}
+					else if (FUNCGEN.bias_A_sign == NEGATIVE) {
+						if (FUNCGEN.bias_A >= 0) FUNCGEN.bias_A_sign = POSITIVE;
+						else FUNCGEN.bias_A--;
+					}
+				}
+				
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.bias_A_sign == NEGATIVE) {
+						if (FUNCGEN.bias_A >= 3300) FUNCGEN.bias_A = 3300;
+						else FUNCGEN.bias_A++;
+					}
+					else if (FUNCGEN.bias_A_sign == POSITIVE) {
+						if (FUNCGEN.bias_A <= 0) FUNCGEN.bias_A_sign = POSITIVE;
+						else FUNCGEN.bias_A--;
+					}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+				
+				case PTR_TYPE_B:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					switch(FUNCGEN.output_type_B) {
+						case OFF: FUNCGEN.output_type_B = SINE; break;
+						case SINE: FUNCGEN.output_type_B = TRIANGLE; break;
+						case TRIANGLE: FUNCGEN.output_type_B = SQUARE; break;
+						case SQUARE: FUNCGEN.output_type_B = DC; break;
+						case DC: default: FUNCGEN.output_type_B = OFF; break;
+					}
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					switch(FUNCGEN.output_type_B) {
+						case OFF: FUNCGEN.output_type_B = DC; break;
+						case SINE: FUNCGEN.output_type_B = OFF; break;
+						case TRIANGLE: FUNCGEN.output_type_B = SINE; break;
+						case SQUARE: FUNCGEN.output_type_B = TRIANGLE; break;
+						case DC: default: FUNCGEN.output_type_B = SQUARE; break;
+					}
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+				
+				case PTR_AMP_B:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.amplitude_B >= 700) FUNCGEN.amplitude_B = 700;
+					else FUNCGEN.amplitude_B++;
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.amplitude_B <= 0) FUNCGEN.amplitude_B = 0;
+					else FUNCGEN.amplitude_B--;
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+
+				case PTR_FREQ_B:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.frequency_B >= 1000000) FUNCGEN.frequency_B = 1000000;
+					else FUNCGEN.frequency_B++;
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.frequency_B <= 0) FUNCGEN.frequency_B = 0;
+					else FUNCGEN.frequency_B--;
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					display.stateChanged = true;
+					displayPointer = PTR_NULL;
+				}
+				
+				break;
+				
+				case PTR_BIAS_B:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.bias_B_sign == POSITIVE) {
+						if (FUNCGEN.bias_B >= 3300) FUNCGEN.bias_B = 3300;
+						else FUNCGEN.bias_B++;
+					}
+					else if (FUNCGEN.bias_B_sign == NEGATIVE) {
+						if (FUNCGEN.bias_B >= 0) FUNCGEN.bias_B_sign = POSITIVE;
+						else FUNCGEN.bias_B--;
+					}
+				}
+				
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					functionalityChanged = true;
+					if (FUNCGEN.bias_B_sign == NEGATIVE) {
+						if (FUNCGEN.bias_B >= 3300) FUNCGEN.bias_B = 3300;
+						else FUNCGEN.bias_B++;
+					}
+					else if (FUNCGEN.bias_B_sign == POSITIVE) {
+						if (FUNCGEN.bias_B <= 0) FUNCGEN.bias_B_sign = POSITIVE;
+						else FUNCGEN.bias_B--;
+					}
+					
+					else if (switchState) {
+						parameterSelectionActivated = false;
+						functionalityChanged = false;
+						displayPointerActivated = false;
+						display.stateChanged = true;
+						displayPointer = PTR_NULL;
+					}
+					
+					break;				
 			}
 		}
 	}
@@ -638,56 +983,56 @@ typedef struct UI_STRINGS {
 } UI;
 
 
-void print_LCD_screen(MainScreen mainScreen, CurrentScreen currentScreen, UI *displayParams) {
+void print_LCD_screen(MainScreen mainScreen, UI *displayParams) {
 	char lcdBuffer[4][20];
 	switch (mainScreen) {
-		case MAIN_SCREEN:
+		case MAIN_SCREEN_A:
 			memcpy(lcdBuffer[0], LCD_MAIN_STRING_1, 20);
 			memcpy(lcdBuffer[1], LCD_MAIN_STRING_2, 20);
 			memcpy(lcdBuffer[2], LCD_MAIN_STRING_3, 20);
 			memcpy(lcdBuffer[3], LCD_MAIN_STRING_4, 20);
-			if (currentScreen == CH_A) {
-				memcpy(lcdBuffer[0] + 17, displayParams->type_A);
-				lcdBuffer[9] = 'A';
-				lcdBuffer[1][12] = displayParams->amplitude_A[0];
-				lcdBuffer[1][14] = displayParams->amplitude_A[1];
-				lcdBuffer[1][15] = displayParams->amplitude_A[2];
-				
-				lcdBuffer[2][7] = displayParams->frequency_A[0];
-				lcdBuffer[2][9] = displayParams->frequency_A[1];
-				lcdBuffer[2][10] = displayParams->frequency_A[2];
-				lcdBuffer[2][11] = displayParams->frequency_A[3];
-				lcdBuffer[2][13] = displayParams->frequency_A[4];
-				lcdBuffer[2][14] = displayParams->frequency_A[5];
-				lcdBuffer[2][15] = displayParams->frequency_A[6];
-				
-				lcdBuffer[3][7] = displayParams->bias_A_sign;	
-							
-				lcdBuffer[3][8] = displayParams->bias_A[0];
-				lcdBuffer[3][10] = displayParams->bias_A[1];
-				lcdBuffer[3][11] = displayParams->bias_A[2];				
-			}
-			else {
-				memcpy(lcdBuffer[0] + 17, displayParams->type_B);
-				lcdBuffer[9] = 'B';
-				lcdBuffer[1][12] = displayParams->amplitude_B[0];
-				lcdBuffer[1][14] = displayParams->amplitude_B[1];
-				lcdBuffer[1][15] = displayParams->amplitude_B[2];
 			
-				lcdBuffer[2][7] = displayParams->frequency_B[0];
-				lcdBuffer[2][9] = displayParams->frequency_B[1];
-				lcdBuffer[2][10] = displayParams->frequency_B[2];
-				lcdBuffer[2][11] = displayParams->frequency_B[3];
-				lcdBuffer[2][13] = displayParams->frequency_B[4];
-				lcdBuffer[2][14] = displayParams->frequency_B[5];
-				lcdBuffer[2][15] = displayParams->frequency_B[6];
+			memcpy(lcdBuffer[0] + 17, displayParams->type_A);
+			lcdBuffer[9] = 'A';
+			lcdBuffer[1][12] = displayParams->amplitude_A[0];
+			lcdBuffer[1][14] = displayParams->amplitude_A[1];
+			lcdBuffer[1][15] = displayParams->amplitude_A[2];
 			
-				lcdBuffer[3][7] = displayParams->bias_B_sign;
+			lcdBuffer[2][7] = displayParams->frequency_A[0];
+			lcdBuffer[2][9] = displayParams->frequency_A[1];
+			lcdBuffer[2][10] = displayParams->frequency_A[2];
+			lcdBuffer[2][11] = displayParams->frequency_A[3];
+			lcdBuffer[2][13] = displayParams->frequency_A[4];
+			lcdBuffer[2][14] = displayParams->frequency_A[5];
+			lcdBuffer[2][15] = displayParams->frequency_A[6];
 			
-				lcdBuffer[3][8] = displayParams->bias_B[0];
-				lcdBuffer[3][10] = displayParams->bias_B[1];
-				lcdBuffer[3][11] = displayParams->bias_B[2];
-			}
+			lcdBuffer[3][7] = displayParams->bias_A_sign;
+			
+			lcdBuffer[3][8] = displayParams->bias_A[0];
+			lcdBuffer[3][10] = displayParams->bias_A[1];
+			lcdBuffer[3][11] = displayParams->bias_A[2];			
+			break;
+		
+		case MAIN_SCEEN_B:
+			memcpy(lcdBuffer[0] + 17, displayParams->type_B);
+			lcdBuffer[9] = 'B';
+			lcdBuffer[1][12] = displayParams->amplitude_B[0];
+			lcdBuffer[1][14] = displayParams->amplitude_B[1];
+			lcdBuffer[1][15] = displayParams->amplitude_B[2];
+			
+			lcdBuffer[2][7] = displayParams->frequency_B[0];
+			lcdBuffer[2][9] = displayParams->frequency_B[1];
+			lcdBuffer[2][10] = displayParams->frequency_B[2];
+			lcdBuffer[2][11] = displayParams->frequency_B[3];
+			lcdBuffer[2][13] = displayParams->frequency_B[4];
+			lcdBuffer[2][14] = displayParams->frequency_B[5];
+			lcdBuffer[2][15] = displayParams->frequency_B[6];
+			
+			lcdBuffer[3][7] = displayParams->bias_B_sign;
+			
+			lcdBuffer[3][8] = displayParams->bias_B[0];
+			lcdBuffer[3][10] = displayParams->bias_B[1];
+			lcdBuffer[3][11] = displayParams->bias_B[2];
 			break;
 			
 		case PARAMS_SCREEN:
@@ -786,12 +1131,10 @@ void LCD_logo_display() {
 #define ENCODER_B
 #define UI_PTR '>'
 typedef enum EncoderStates {NONE, CW, CCW} EncoderState;
-typedef enum MainScreens { MAIN_SCREEN, PARAMS_SCREEN, SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
-typedef enum CurrentScreens { CH_A, CH_B, SETT } CurrentScreen;
+typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCEEN_B, PARAMS_SCREEN, SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
 
 typedef struct {
 	bool stateChanged;
-	CurrentScreen currentScreen;
 	MainScreen mainScreen;
 	} Screen;
 	
