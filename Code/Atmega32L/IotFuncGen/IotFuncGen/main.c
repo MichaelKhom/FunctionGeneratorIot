@@ -535,6 +535,22 @@ void clear_funcgen_values() {
 	FUNCGEN.bias_B_sign = POSITIVE;
 }
 
+void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive) {
+	if (pointerActive) {
+		switch(screen) {
+			case MAIN_SCREEN:
+		}
+	}
+	
+	else if (paramActive) {
+		
+	}
+}
+
+void handleFuncGen(DisplayPointer displayPointer) {
+	
+}
+
 int main() {
 	/* Testing definitions */
 	#ifdef PRE_PROG
@@ -581,13 +597,15 @@ int main() {
 	else displayParameters.bias_A_sign = '-';
 	if (FUNCGEN.bias_B_sign == POSITIVE) displayParameters.bias_B_sign = '+';
 	else displayParameters.bias_B_sign = '-';
-	_delay_ms(1500);	
-	print_LCD_screen(display.mainScreen, displayParameters);
+	_delay_ms(1500);
 	
 	while(1) {
 		
 		encoderState = poll_encoder();
 		switchState = poll_switch();
+		
+		if (display.stateChanged) handleLCD(&display, displayPointerActivated, parameterSelectionActivated);
+		if (functionalityChanged) handleAD9834(displayPointer);
 		
 		if (!displayPointerActivated && !parameterSelectionActivated) {
 			switch(display.mainScreen) {
