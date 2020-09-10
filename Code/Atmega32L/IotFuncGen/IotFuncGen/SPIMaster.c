@@ -1,7 +1,7 @@
 #include "Headers\main.h"
 #include "Headers\SPIMaster.h"
 
-void SPI_write_16bit(uint8_t address_in, uint8_t data_in, enum DEVICES device) {
+void SPI_write_16bit(uint8_t address_in, uint8_t data_in, enum Device device) {
 	switch(device) {
 		case DACA: SPI_CE_PORT &= ~DACA_NCE; break;
 		case DACB: SPI_CE_PORT &= ~DACB_NCE; break;

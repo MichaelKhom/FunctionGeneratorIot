@@ -12,7 +12,6 @@
 #include <math.h>
 #include <avr/wdt.h>
 #include <avr/eeprom.h>
-#include "WifiParams.h"
 
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 /*-----------------------------*/
@@ -68,19 +67,23 @@
 #define FG1_NCE			(1 << PINC7)
 #define POT_LCD_NCE		(1 << PINA4)
 
-enum DEVICES { DACA = 1, DACB, DACA_BIAS, DACB_BIAS, FG0, FG1, LCD_POT };
-enum MODES { SINE = 1, TRIANGLE, SQUARE, DC, OFF };
-enum LED_STATES { RED = 1, GREEN, BLUE, LED_OFF };
-	
-const char MODES_STRING[5][3] = {"SIN", "SQR", "TRN", "DC ", "OFF"};
-	
-/* RGB LED  */
-#define LED_DDR		DDRB
-#define LED_PORT	PORTB
-#define LED_B		(1 << PINB2)
-#define LED_G		(1 << PINB3)
-#define LED_R		(1 << PINB4)
+#define PIN_ENCODER PINB
+#define ENCODER_A_PORT PORTB
+#define ENCODER_B_PORT PORTB
+#define ENCODER_A_DDR DDRB
+#define ENCODER_B_DDR DDRB
 
+#define ENCODER_A (1 << PINB2)
+#define ENCODER_B (1 << PINB3)
+#define UI_PTR '>'
+
+typedef enum EncoderStates {NONE, CW, CCW} EncoderState;
+typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCREEN_B, PARAMS_SCREEN, SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
+typedef enum DisplayPointers { PTR_NULL, PTR_TYPE_A, PTR_FREQ_A, PTR_BIAS_A, PTR_AMP_A, PTR_TYPE_B, PTR_FREQ_B, PTR_BIAS_B, PTR_AMP_B, PTR_SETT,  PTR_SHUTDOWN, } DisplayPointer;
+	
+enum Device { DACA = 1, DACB, DACA_BIAS, DACB_BIAS, FG0, FG1, LCD_POT };
+enum WaveformType { SINE = 1, TRIANGLE, SQUARE, DC, OFF };
+enum LEDState { RED = 1, GREEN, BLUE, LED_OFF };
 /* LCD Definitions */
 #define LCD_CONTROL_DDR		DDRB
 #define LCD_CONTROL_PORT	PORTB
@@ -162,37 +165,48 @@ do                          \
 #define CONTRAST 1
 #define VOLUME 2
 
-#define MAX_STRING_BUFFER 20
-#define ZERO_AMPLITUDE "0.00"
-#define ZERO_BIAS "+0.00"
-#define START_WLAN_MSG			" Starting Wi-Fi LAN "
-#define START_DIRECT_MSG		"  Starting Direct   "
-#define START_COMM_MSG			"communication wizard"
-#define ESP32_STATUS_MSG_OK		"ESP32 Device......OK"
-#define ESP32_STATUS_MSG		"ESP32 Device......  "
-#define REQUEST_NETWORK_MSG		"Opening Network...  "
-#define REQUEST_NETWORK_MSG_OK	"Opening Network...OK"
-#define CREATING_SERVER_MSG		"Creating Server...  "
-#define CREATING_SERVER_MSG_OK	"Creating Server...OK"
-#define WAIT_FOR_DEVICE_MSG		"<Waiting For Device>"
-#define DEVICE_CONNECTED_MSG	" <Device connected> "
-#define SHUTDOWN_MSG			"  Shutting Down...  "
-#define IN_X_SEC_MSG			"      in X sec      "
-#define REBOOT_MSG				"   Rebooting...     "
-#define PB_MSG					"Push button to begin"
+#define LCD_MAIN_STRING_1 " Channel:X, Type:XXX"
+#define LCD_MAIN_STRING_2 " Amplitude: X.XX[V] "
+#define LCD_MAIN_STRING_3 " Freq: X.XXX.XXX[Hz]"
+#define LCD_MAIN_STRING_4 " Bias: XX.XX[V]     "
+
+#define LCD_MAIN_SETTINGS_STRING_1 "Voltage(Bat):X.XX[V]"
+#define LCD_MAIN_SETTINGS_STRING_2 "External Power: XXX "
+#define LCD_MAIN_SETTINGS_STRING_3 "  Settings		   "
+#define LCD_MAIN_SETTINGS_STRING_4 "  Shutdown	       "
+
+#define LCD_SETTINGS_STRING_1 "  Profile Settings  "
+#define LCD_SETTINGS_STRING_2 "  LCD Settings      "
+#define LCD_SETTINGS_STRING_3 "  Boot Settings     "
+#define LCD_SETTINGS_STRING_4 "       <BACK>       "
+
+#define LCD_PROFILE_SETTINGS_STRING_1 "  Save Profile	   "
+#define LCD_PROFILE_SETTINGS_STRING_2 "  Load Profile	   "
+#define LCD_PROFILE_SETTINGS_STRING_3 "  Delete Profile	   "
+#define LCD_PROFILE_SETTINGS_STRING_4 "       <BACK>       "
+
+#define LCD_SCREEN_SETTINGS_STRING_1 "  Brightness:XXX[%] "
+#define LCD_SCREEN_SETTINGS_STRING_2 "  Contrast:XXX[%]	  "
+#define LCD_SCREEN_SETTINGS_STRING_3 "                    "
+#define LCD_SCREEN_SETTINGS_STRING_4 "       <BACK>       "
+
+#define LCD_SHUTDOWN_STRING_1 "  Perform Reset     "
+#define LCD_SHUTDOWN_STRING_2 "  Power Off         "
+#define LCD_SHUTDOWN_STRING_3 "  Factory Settings  "
+#define LCD_SHUTDOWN_STRING_4 "       <BACK>       "
 
 struct MAIN_STRUCTURE {
 	uint32_t frequency_A, frequency_B;
 	uint16_t amplitude_A, amplitude_B;
-	enum MODES output_type_A, output_type_B;
+	enum WaveformType output_type_A, output_type_B;
 	uint16_t bias_A, bias_B;
 	bool bias_A_sign, bias_B_sign;
-} FUNCGEN;
+} FunctionGenerator;
 
-struct STATUS_STRUCTURE {
+struct PowerStatus_STRUCTURE {
 	uint8_t battery_voltage;
-	bool   ac_power_status;
-} STATUS;
+	bool   ac_power_PowerStatus;
+} PowerStatus;
 
 
 struct LCD_PARAMETERS {
@@ -203,54 +217,48 @@ struct LCD_PARAMETERS {
 struct UI_STRINGS {
 	char frequency_A[7], frequency_B[7];
 	char amplitude_A[3], amplitude_B[3];
-	char bias_A[4], bias_B[4];
+	char bias_A[3], bias_B[3];
 	char type_A[3], type_B[3];
+	char bias_A_sign, bias_B_sign;
+	char batteryPowerStatus[3];
 } UI;
 
-uint8_t update_sg_param_value(uint8_t parameter);
-void set_volume(uint8_t value);
+typedef struct {
+	bool stateChanged;
+	MainScreen mainScreen;
+} Screen;
+
+struct {
+	volatile bool previousA;
+	volatile bool previousB;
+	uint8_t encoderSeqCntCW;
+	uint8_t encoderSeqCntCCW;
+} Encoder;
+
+
 void beep();
-void shutdown_sequence(bool is_erase_requested);
+void playMelody(bool power_on);
+void shutdownSequence(bool is_erase_requested);
 void Init_Timer();
 void Init_Ports();
 void Init_Device();
 void Init_ADC();
 void Init_UI();
-void set_output_selection(enum DEVICES device, enum MODES device_mode);
-void set_functionality(enum DEVICES device, uint32_t device_freq, enum MODES mode);
-int set_amplitude(uint16_t val_in, enum DEVICES device);
-void set_LED(enum LED_STATES LED);
-bool poll_switch();
-void test_LEDS();
-void set_animated_brightness();
-void set_LCD_contrast(uint8_t value);
-int set_LCD_brightness(uint8_t value);
-int set_dc_bias (enum DEVICES device, uint16_t value, bool sign);
+void selectOutputType(enum Device device, enum WaveformType waveformType);
+void setFunction(enum Device device, uint32_t waveFrequency, enum WaveformType mode);
+int setAmplitude(uint16_t valueIn, enum Device device);
+bool pollSwitch();
+EncoderState pollEncoder();
+void brightnessAnimation();
+void setContrastLCD(uint8_t value);
+int setBrightnessLCD(uint8_t value);
+int setBiasDC(enum Device device, uint16_t value, bool sign);
 void erase_EEPROM_1K();
-void wifi_lan_pairing();
-void start_wlan_communication();
-char * create_wifi_command();
-void save_wifi_credentials();
-void retrieve_wifi_credentials();
-void direct_pairing();
-void socket_message_handler();
-void update_battery_status();
-void update_ac_power_status();
-char * get_battery_status();
-char * get_ac_power_status();
-uint8_t get_li_ion_percentage (uint16_t vin);
-void clear_active_UI();
-void update_UI_activity(uint8_t line, uint8_t segment);
-void update_complete_UI();
-uint32_t retrieve_frequency_uint32(char channel_in);
-uint16_t retrieve_amplitude_12_bit(char channel_in);
-uint16_t retrieve_bias_12_bit(char channel_in);
-bool retrieve_bias_sign();
-void set_parameter();
-void clear_all_values();
-void clear_funcgen_values();
-void clear_status_values();
-void clear_wifi_values();
-void print_LCD_line_stored(char *msg, uint8_t line_in);
-void init_UI_array();
+uint8_t getParametersLCD(uint8_t parameter);
+void updateBatteryStatus();
+void updateAcStatus();
+void clearWaveformValues();
+void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive);
+void handleFunctionGenerator(DisplayPointer displayPointer);
+void uintToString(uint32_t number, char *string, uint8_t length);
 #endif /* MAIN_H_ */
