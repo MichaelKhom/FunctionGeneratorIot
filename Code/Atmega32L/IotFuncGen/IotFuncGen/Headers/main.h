@@ -77,13 +77,6 @@
 #define ENCODER_B (1 << PINB3)
 #define UI_PTR '>'
 
-typedef enum EncoderStates {NONE, CW, CCW} EncoderState;
-typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCREEN_B, PARAMS_SCREEN, SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
-typedef enum DisplayPointers { PTR_NULL, PTR_TYPE_A, PTR_FREQ_A, PTR_BIAS_A, PTR_AMP_A, PTR_TYPE_B, PTR_FREQ_B, PTR_BIAS_B, PTR_AMP_B, PTR_SETT,  PTR_SHUTDOWN, } DisplayPointer;
-	
-enum Device { DACA = 1, DACB, DACA_BIAS, DACB_BIAS, FG0, FG1, LCD_POT };
-enum WaveformType { SINE = 1, TRIANGLE, SQUARE, DC, OFF };
-enum LEDState { RED = 1, GREEN, BLUE, LED_OFF };
 /* LCD Definitions */
 #define LCD_CONTROL_DDR		DDRB
 #define LCD_CONTROL_PORT	PORTB
@@ -165,35 +158,46 @@ do                          \
 #define CONTRAST 1
 #define VOLUME 2
 
-#define LCD_MAIN_STRING_1 " Channel:X, Type:XXX"
-#define LCD_MAIN_STRING_2 " Amplitude: X.XX[V] "
-#define LCD_MAIN_STRING_3 " Freq: X.XXX.XXX[Hz]"
-#define LCD_MAIN_STRING_4 " Bias: XX.XX[V]     "
+#define LCD_MAIN_STRING_1			  " Channel:X, Type:XXX"
+#define LCD_MAIN_STRING_2			  " Amplitude: X.XX[V] "
+#define LCD_MAIN_STRING_3			  " Freq: X.XXX.XXX[Hz]"
+#define LCD_MAIN_STRING_4			  " Bias: XX.XX[V]     "
 
-#define LCD_MAIN_SETTINGS_STRING_1 "Voltage(Bat):X.XX[V]"
-#define LCD_MAIN_SETTINGS_STRING_2 "External Power: XXX "
-#define LCD_MAIN_SETTINGS_STRING_3 "  Settings		   "
-#define LCD_MAIN_SETTINGS_STRING_4 "  Shutdown	       "
+#define LCD_MAIN_SETTINGS_STRING_1	  "Voltage(Bat):X.XX[V]"
+#define LCD_MAIN_SETTINGS_STRING_2	  "External Power: XXX "
+#define LCD_MAIN_SETTINGS_STRING_3    "  Settings          "
+#define LCD_MAIN_SETTINGS_STRING_4	  "  Shutdown          "
 
-#define LCD_SETTINGS_STRING_1 "  Profile Settings  "
-#define LCD_SETTINGS_STRING_2 "  LCD Settings      "
-#define LCD_SETTINGS_STRING_3 "  Boot Settings     "
-#define LCD_SETTINGS_STRING_4 "       <BACK>       "
-
-#define LCD_PROFILE_SETTINGS_STRING_1 "  Save Profile	   "
-#define LCD_PROFILE_SETTINGS_STRING_2 "  Load Profile	   "
-#define LCD_PROFILE_SETTINGS_STRING_3 "  Delete Profile	   "
+#define LCD_PROFILE_SETTINGS_STRING_1 "<<Profile Settings>>"
+#define LCD_PROFILE_SETTINGS_STRING_2 "  Save Profile	   "
+#define LCD_PROFILE_SETTINGS_STRING_3 "  Load Profile	   "
 #define LCD_PROFILE_SETTINGS_STRING_4 "       <BACK>       "
 
-#define LCD_SCREEN_SETTINGS_STRING_1 "  Brightness:XXX[%] "
-#define LCD_SCREEN_SETTINGS_STRING_2 "  Contrast:XXX[%]	  "
-#define LCD_SCREEN_SETTINGS_STRING_3 "                    "
-#define LCD_SCREEN_SETTINGS_STRING_4 "       <BACK>       "
+#define LCD_SCREEN_SETTINGS_STRING_1  "  <<LCD Settings>>  "
+#define LCD_SCREEN_SETTINGS_STRING_2  "  Brightness:XXX[%] "
+#define LCD_SCREEN_SETTINGS_STRING_3  "  Contrast:  XXX[%] "
+#define LCD_SCREEN_SETTINGS_STRING_4  "       <BACK>       "
 
-#define LCD_SHUTDOWN_STRING_1 "  Perform Reset     "
-#define LCD_SHUTDOWN_STRING_2 "  Power Off         "
-#define LCD_SHUTDOWN_STRING_3 "  Factory Settings  "
-#define LCD_SHUTDOWN_STRING_4 "       <BACK>       "
+#define LCD_SHUTDOWN_STRING_1		  "  Perform Reset     "
+#define LCD_SHUTDOWN_STRING_2		  "  Power Off         "
+#define LCD_SHUTDOWN_STRING_3		  "  Factory Settings  "
+#define LCD_SHUTDOWN_STRING_4		  "       <BACK>       "
+
+typedef enum EncoderStates {NONE, CW, CCW} EncoderState;
+
+enum Device { DACA = 1, DACB, DACA_BIAS, DACB_BIAS, FG0, FG1, LCD_POT };
+enum WaveformType { SINE = 1, TRIANGLE, SQUARE, DC, OFF };
+enum LEDState { RED = 1, GREEN, BLUE, LED_OFF };
+
+typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCREEN_B, PARAMS_SCREEN, 
+						   SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
+						   
+typedef enum DisplayPointers { PTR_NULL, PTR_BACK,
+							   PTR_TYPE_A, PTR_FREQ_A, PTR_BIAS_A, PTR_AMP_A, PTR_TYPE_B, PTR_FREQ_B, PTR_BIAS_B, PTR_AMP_B, 
+							   PTR_SETT,  PTR_SHUTDOWN,
+							   PTR_SAVE_PROF, PTR_LOAD_PROF,
+							   PTR_BRIGHT, PTR_CONTR,
+							   } DisplayPointer;
 
 struct MAIN_STRUCTURE {
 	uint32_t frequency_A, frequency_B;
@@ -216,11 +220,13 @@ struct LCD_PARAMETERS {
 
 struct UI_STRINGS {
 	char frequency_A[7], frequency_B[7];
-	char amplitude_A[3], amplitude_B[3];
+	char amplitude_A[2], amplitude_B[2];
 	char bias_A[3], bias_B[3];
 	char type_A[3], type_B[3];
 	char bias_A_sign, bias_B_sign;
 	char batteryPowerStatus[3];
+	char lcd_brightness[3];
+	char lcd_contrast[3];
 } UI;
 
 typedef struct {
@@ -258,7 +264,12 @@ uint8_t getParametersLCD(uint8_t parameter);
 void updateBatteryStatus();
 void updateAcStatus();
 void clearWaveformValues();
-void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive);
+void clearUIValues();
+void clearLCDParameterValues();
+void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive);
 void handleFunctionGenerator(DisplayPointer displayPointer);
+void handleLCDParameter(DisplayPointer displayPointer);
 void uintToString(uint32_t number, char *string, uint8_t length);
+void EEPROM_SaveProfile();
+void EEPROM_LoadProfile();
 #endif /* MAIN_H_ */

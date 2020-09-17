@@ -1,9 +1,7 @@
 /*
- * IoT Dual Channel Function Generator V1.4
+ * IoT Dual Channel Function Generator V2.0
  * Designed by: Michael Khomyakov
  * July 2019
- * Department of Electric and Electronic Engineering
- * Ariel University
  */ 
 //#include "main.h"
 #include "Headers\main.h"
@@ -35,7 +33,7 @@ void playMelody(bool power_on) {
 			MISC_PORT &= ~BUZZER;
 			_delay_us(338);
 		}
-		for (uint16_t ptrm = 0; ptrm < 704; ptrm++) {
+		for (uint16_t ptrm = 0; ptrm < 352; ptrm++) {
 			MISC_PORT |= BUZZER;
 			_delay_us(284);
 			MISC_PORT &= ~BUZZER;
@@ -74,8 +72,6 @@ void shutdownSequence(bool is_erase_requested) {
 		print_LCD_char(cntx + '0',LCD_LINE_3, 3);
 		_delay_ms(DELAY_COMMAND_MS);
 	}
-	//send_command_UART("SHDN\r\n");
-	if (is_erase_requested) erase_EEPROM_1K();
 	playMelody(false);
 	DISABLE_DEVICE();
 }
@@ -85,7 +81,6 @@ void Init_Timer() {
 	TCNT1 = 0;
 	TCCR1B |= (1 << WGM12);
 	OCR1A = 1000;
-	//ENABLE_TIMER();
 }
 
 void Init_Ports() {
@@ -260,13 +255,6 @@ void erase_EEPROM_1K() {
 	for (uint16_t ptr = 0; ptr < EEPROM_ADRESS_SPAN + 1; ptr++) eeprom_write_byte((uint8_t *)ptr, 0);
 }
 
-uint8_t getParametersLCD(uint8_t parameter) {
-	uint8_t val = 0;
-	if (parameter == CONTRAST) LCD.contrast = val;
-	else if (parameter == BRIGHTNESS) LCD.brightness = val;
-	return val;
-}
-
 void updateBatteryStatus() {
 	ADMUX = 0;
 	ADCSRA |= (1 << ADSC);
@@ -300,7 +288,28 @@ void clearWaveformValues() {
 	FunctionGenerator.bias_B_sign = POSITIVE;
 }
 
-void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive) {
+void clearUIValues() {
+	memset(UI.frequency_A, 0, 7);
+	memset(UI.frequency_B, 0, 7);
+	memset(UI.amplitude_A, 0, 2);
+	memset(UI.amplitude_B, 0, 2);
+	memset(UI.type_A, 0, 3);
+	memset(UI.type_B, 0, 3);
+	memset(UI.bias_A, 0, 3);
+	memset(UI.bias_B, 0, 3);
+	UI.bias_A_sign = ' ';
+	UI.bias_B_sign = ' ';
+	memset(UI.lcd_contrast, 0, 3);
+	memset(UI.lcd_brightness, 0, 3);
+	memset(UI.batteryPowerStatus, 0, 3);
+}
+
+void clearLCDParameterValues() {
+	LCD.brightness = 100;
+	LCD.contrast = 100;
+}
+
+void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive) {
 	
 	if (pointerActive) {
 		switch(displayPointer) {
@@ -311,28 +320,28 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 			print_LCD_char(' ', LCD_LINE_4, 0);
 			break;
 			
-			case PTR_TYPE_A: case PTR_TYPE_B:
-			print_LCD_char('>', LCD_LINE_1, 0);
+			case PTR_TYPE_A: case PTR_TYPE_B: 
+			print_LCD_char('>', LCD_LINE_1, 0); 
 			print_LCD_char(' ', LCD_LINE_2, 0);
 			print_LCD_char(' ', LCD_LINE_3, 0);
 			print_LCD_char(' ', LCD_LINE_4, 0);
 			break;
 			
-			case PTR_AMP_A: case PTR_AMP_B:
+			case PTR_AMP_A: case PTR_AMP_B: case PTR_SAVE_PROF: case PTR_BRIGHT:
 			print_LCD_char(' ', LCD_LINE_1, 0);
 			print_LCD_char('>', LCD_LINE_2, 0);
 			print_LCD_char(' ', LCD_LINE_3, 0);
 			print_LCD_char(' ', LCD_LINE_4, 0);
 			break;
 			
-			case PTR_FREQ_A: case PTR_FREQ_B: case PTR_SETT:
+			case PTR_FREQ_A: case PTR_FREQ_B: case PTR_SETT: case PTR_LOAD_PROF: case PTR_CONTR:
 			print_LCD_char(' ', LCD_LINE_1, 0);
 			print_LCD_char(' ', LCD_LINE_2, 0);
 			print_LCD_char('>', LCD_LINE_3, 0);
 			print_LCD_char(' ', LCD_LINE_4, 0);
 			break;
 			
-			case PTR_BIAS_A: case PTR_BIAS_B: case PTR_SHUTDOWN:
+			case PTR_BIAS_A: case PTR_BIAS_B: case PTR_SHUTDOWN: case PTR_BACK:
 			print_LCD_char(' ', LCD_LINE_1, 0);
 			print_LCD_char(' ', LCD_LINE_2, 0);
 			print_LCD_char(' ', LCD_LINE_3, 0);
@@ -472,6 +481,26 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 		}
 	}
 	
+	else if (lcdParamActive) {
+		switch(displayPointer) {
+			case PTR_BRIGHT:			
+			uintToString(LCD.brightness, UI.lcd_brightness, 3);
+			print_LCD_char(UI.lcd_brightness[0], LCD_LINE_2, 13);
+			print_LCD_char(UI.lcd_brightness[1], LCD_LINE_2, 14);
+			print_LCD_char(UI.lcd_brightness[2], LCD_LINE_2, 15);
+			break;
+
+			case PTR_CONTR:
+			uintToString(LCD.contrast, UI.lcd_contrast, 3);
+			print_LCD_char(UI.lcd_contrast[0], LCD_LINE_3, 13);
+			print_LCD_char(UI.lcd_contrast[1], LCD_LINE_3, 14);
+			print_LCD_char(UI.lcd_contrast[2], LCD_LINE_3, 15);
+			break;
+			
+			default: break;
+		}
+	}
+	
 	else {
 		switch(screen) {
 			case MAIN_SCREEN_A:
@@ -535,21 +564,46 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 			print_LCD_line(LCD_MAIN_SETTINGS_STRING_4, LCD_LINE_4);
 			
 			uintToString(PowerStatus.battery_voltage, UI.batteryPowerStatus, 3);
-			print_LCD_char(UI.batteryPowerStatus[0], LCD_LINE_3, 13);
-			print_LCD_char(UI.batteryPowerStatus[1], LCD_LINE_3, 15);
-			print_LCD_char(UI.batteryPowerStatus[2], LCD_LINE_3, 16);
+			print_LCD_char(UI.batteryPowerStatus[0], LCD_LINE_1, 13);
+			print_LCD_char(UI.batteryPowerStatus[1], LCD_LINE_1, 15);
+			print_LCD_char(UI.batteryPowerStatus[2], LCD_LINE_1, 16);
 			
 			if (PowerStatus.ac_power_PowerStatus) {
-				print_LCD_char('O', LCD_LINE_3, 16);
-				print_LCD_char('N', LCD_LINE_3, 17);
-				print_LCD_char(' ', LCD_LINE_3, 18);
+				print_LCD_char('O', LCD_LINE_2, 16);
+				print_LCD_char('N', LCD_LINE_2, 17);
+				print_LCD_char(' ', LCD_LINE_2, 18);
 			}
 			
 			else {
-				print_LCD_char('O', LCD_LINE_3, 16);
-				print_LCD_char('F', LCD_LINE_3, 17);
-				print_LCD_char('F', LCD_LINE_3, 18);
+				print_LCD_char('O', LCD_LINE_2, 16);
+				print_LCD_char('F', LCD_LINE_2, 17);
+				print_LCD_char('F', LCD_LINE_2, 18);
 			}
+			break;
+			
+			case PROFILE_SCREEN:
+			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_1, LCD_LINE_1);
+			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_2, LCD_LINE_2);
+			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_3, LCD_LINE_3);
+			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_4, LCD_LINE_4);
+			break;
+
+			case LCD_SCREEN:
+			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_1, LCD_LINE_1);
+			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_2, LCD_LINE_2);
+			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_3, LCD_LINE_3);
+			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_4, LCD_LINE_4);
+			
+			uintToString(LCD.brightness, UI.lcd_brightness, 3);
+			uintToString(LCD.contrast, UI.lcd_contrast, 3);
+			
+			print_LCD_char(UI.lcd_brightness[0], LCD_LINE_2, 13);
+			print_LCD_char(UI.lcd_brightness[1], LCD_LINE_2, 14);
+			print_LCD_char(UI.lcd_brightness[2], LCD_LINE_2, 15);
+			
+			print_LCD_char(UI.lcd_contrast[0], LCD_LINE_3, 13);
+			print_LCD_char(UI.lcd_contrast[1], LCD_LINE_3, 14);
+			print_LCD_char(UI.lcd_contrast[2], LCD_LINE_3, 15);
 			break;
 			
 			default: break;
@@ -578,6 +632,14 @@ void handleFunctionGenerator(DisplayPointer displayPointer) {
 	}
 }
 
+void handleLCDParameter(DisplayPointer displayPointer) {
+	switch(displayPointer) {
+		case PTR_BRIGHT: setBrightnessLCD(LCD.brightness); break;
+		case PTR_CONTR: setContrastLCD(LCD.contrast); break;
+		default: break;
+	}
+}
+
 void uintToString(uint32_t number, char *string, uint8_t length) {
 	uint8_t iPtr = 0;
 	while(iPtr < length) {
@@ -596,6 +658,36 @@ void LCD_logo_display() {
 	print_LCD_line("  <Initializing...> ", LCD_LINE_4);
 }
 
+void EEPROM_SaveProfile() {
+	eeprom_write_dword((uint32_t *)0x00, FunctionGenerator.frequency_A); eeprom_busy_wait();
+	eeprom_write_dword((uint32_t *)0x04, FunctionGenerator.frequency_B); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x08, FunctionGenerator.amplitude_A); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x09, FunctionGenerator.amplitude_B); eeprom_busy_wait();
+	eeprom_write_word((uint16_t *)0x0A, FunctionGenerator.bias_A); eeprom_busy_wait();
+	eeprom_write_word((uint16_t *)0x0C, FunctionGenerator.bias_B); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x0E, FunctionGenerator.bias_A_sign); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x0F, FunctionGenerator.bias_B_sign); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x10, FunctionGenerator.output_type_A); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x11, FunctionGenerator.output_type_B); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x12, LCD.brightness); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x13, LCD.contrast); eeprom_busy_wait();
+}
+
+void EEPROM_LoadProfile() {
+	FunctionGenerator.frequency_A = eeprom_read_dword((uint32_t *)0x00); eeprom_busy_wait();
+	FunctionGenerator.frequency_B = eeprom_read_dword((uint32_t *)0x04); eeprom_busy_wait();
+	FunctionGenerator.amplitude_A = eeprom_read_byte((uint8_t *)0x08); eeprom_busy_wait();
+	FunctionGenerator.amplitude_B = eeprom_read_byte((uint8_t *)0x09); eeprom_busy_wait();
+	FunctionGenerator.bias_A = eeprom_read_word((uint16_t *)0x0A); eeprom_busy_wait();
+	FunctionGenerator.bias_B = eeprom_read_word((uint16_t *)0x0C); eeprom_busy_wait();
+	FunctionGenerator.bias_A_sign = eeprom_read_byte((uint8_t *)0x0E); eeprom_busy_wait();
+	FunctionGenerator.bias_B_sign = eeprom_read_byte((uint8_t *)0x0F); eeprom_busy_wait();
+	FunctionGenerator.output_type_A = eeprom_read_byte((uint8_t *)0x10); eeprom_busy_wait();
+	FunctionGenerator.output_type_B = eeprom_read_byte((uint8_t *)0x11); eeprom_busy_wait();
+	LCD.brightness = eeprom_read_byte((uint8_t *)0x12); eeprom_busy_wait();
+	LCD.contrast = eeprom_read_byte((uint8_t *)0x13); eeprom_busy_wait();
+}
+
 int main() {
 	/* Testing definitions */
 	#ifdef PRE_PROG
@@ -603,33 +695,32 @@ int main() {
 		while(1);
 	#endif
 	
-	Screen display;
 	EncoderState encoderState = NONE;
-	static DisplayPointer displayPointer;
 	bool switchState = false;
 	
+	static Screen display;
+	static DisplayPointer displayPointer;
 	static bool parameterSelectionActivated = false;
 	static bool displayPointerActivated = false;
 	static bool functionalityChanged = false;
 	static uint8_t buttonPressCounter = 0;
 	static uint16_t prevBatVoltage = 0;
 	static bool prevAcPowerStatus = false;
+	static bool lcdParameterChanged = false;
+	static bool lcdFunctionChanged = false;
 
 	Init_Device();
 	Init_UI();
-	
-	clear_LCD();
-	print_LCD_line("	 Loading...     ", LCD_LINE_2);
-	
+
 	/* Initialization sequence */
 	display.mainScreen = MAIN_SCREEN_A;
 	display.stateChanged = false;
-	functionalityChanged = false;
-	parameterSelectionActivated = false;
-	displayPointerActivated = false;
 	buttonPressCounter = 0;
+	
 	clearWaveformValues();
-	handleLCD(display.mainScreen, PTR_NULL, false, false);
+	clearUIValues();
+	clearLCDParameterValues();
+	handleLCD(display.mainScreen, PTR_NULL, false, false, false);
 	_delay_ms(1500);
 	
 	while(1) {
@@ -639,11 +730,16 @@ int main() {
 		
 		if (display.stateChanged) {
 			display.stateChanged = false;
-			handleLCD(display.mainScreen, displayPointer, displayPointerActivated, parameterSelectionActivated);
+			handleLCD(display.mainScreen, displayPointer, displayPointerActivated, parameterSelectionActivated, lcdFunctionChanged);
 		}
 		if (functionalityChanged) {
 			functionalityChanged = false;
 			handleFunctionGenerator(displayPointer);
+		}
+		
+		if (lcdFunctionChanged) {
+			lcdFunctionChanged = false;
+			handleLCDParameter(displayPointer);
 		}
 		
 		if (!displayPointerActivated && !parameterSelectionActivated) {
@@ -703,8 +799,44 @@ int main() {
 			
 					break;	
 					
+				case PROFILE_SCREEN:
+					if (encoderState == CW) {
+						display.mainScreen = LCD_SCREEN;
+						display.stateChanged = true;
+					}
+					
+					else if (encoderState == CCW) {
+						display.mainScreen = LCD_SCREEN;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						displayPointerActivated = true;
+						displayPointer = PTR_SAVE_PROF;
+						display.stateChanged = true;
+					}
+					
+					break;		
+							
+				case LCD_SCREEN:
+					if (encoderState == CW) {
+						display.mainScreen = PROFILE_SCREEN;
+						display.stateChanged = true;
+					}
+					
+					else if (encoderState == CCW) {
+						display.mainScreen = PROFILE_SCREEN;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						displayPointerActivated = true;
+						displayPointer = PTR_BRIGHT;
+						display.stateChanged = true;
+					}
+					
+					break;				
+						
 				default: break;
-					 				
+				
 			}
 		}
 		else if (displayPointerActivated && !parameterSelectionActivated) { 
@@ -843,10 +975,90 @@ int main() {
 					}
 					else if (switchState) {
 						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						parameterSelectionActivated = false;
+						display.mainScreen = PROFILE_SCREEN;
 						display.stateChanged = true;
 					}
 					break;
+					
+				case PTR_SAVE_PROF:
+					if (encoderState == CW) {
+						displayPointer = PTR_LOAD_PROF;
+						display.stateChanged = true;
+					}
+					else if (encoderState == CCW) {
+						displayPointer = PTR_BACK;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						parameterSelectionActivated = false;
+						functionalityChanged = false;
+						displayPointerActivated = false;
+						lcdParameterChanged = false;
+						displayPointer = PTR_NULL;
+						display.stateChanged = true;
+						display.mainScreen = PARAMS_SCREEN;
+						EEPROM_SaveProfile();
+						beep();
+					}
+					break;
+					
+				case PTR_LOAD_PROF:
+					if (encoderState == CW) {
+						displayPointer = PTR_BACK;
+						display.stateChanged = true;
+					}
+					else if (encoderState == CCW) {
+						displayPointer = PTR_SAVE_PROF;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						parameterSelectionActivated = false;
+						functionalityChanged = false;
+						displayPointerActivated = false;
+						lcdParameterChanged = false;
+						displayPointer = PTR_NULL;
+						display.stateChanged = true;
+						display.mainScreen = PARAMS_SCREEN;
+						EEPROM_LoadProfile();
+						beep();
+					}
+					break;			
+				
+				case PTR_BRIGHT:
+					if (encoderState == CW) {
+						displayPointer = PTR_CONTR;
+						display.stateChanged = true;
+					}
+					else if (encoderState == CCW) {
+						displayPointer = PTR_BACK;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = false;
+						display.stateChanged = true;
+						lcdParameterChanged = true;
+					}
+					break;
+				
+				case PTR_CONTR:
+					if (encoderState == CW) {
+						displayPointer = PTR_BACK;
+						display.stateChanged = true;
+					}
+					else if (encoderState == CCW) {
+						displayPointer = PTR_BRIGHT;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						displayPointerActivated = false;
+						parameterSelectionActivated = false;
+						display.stateChanged = true;
+						lcdParameterChanged = true;
+					}
+					break;
+												
 				case PTR_SHUTDOWN:
 					if (encoderState == CW) {
 						displayPointer = PTR_SETT;
@@ -859,7 +1071,17 @@ int main() {
 					else if (switchState) shutdownSequence(false);
 					break;
 					
-					default: break;
+				case PTR_BACK: 
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					lcdParameterChanged = false;
+					displayPointer = PTR_NULL;
+					display.stateChanged = true;
+					display.mainScreen = PARAMS_SCREEN;
+					break;
+					
+				default: break;
 			}
 		}
 		else if (!displayPointerActivated && parameterSelectionActivated) {
@@ -1133,6 +1355,7 @@ int main() {
 							case 3: FunctionGenerator.frequency_B += 1000; break;
 							case 4: FunctionGenerator.frequency_B += 10000; break;
 							case 5: FunctionGenerator.frequency_B += 100000; break;
+							default: break;
 						}
 					}
 				}
@@ -1148,6 +1371,7 @@ int main() {
 							case 3: FunctionGenerator.frequency_B -= 1000; break;
 							case 4: FunctionGenerator.frequency_B -= 10000; break;
 							case 5: FunctionGenerator.frequency_B -= 100000; break;
+							default: break;
 						}
 					}
 				}
@@ -1176,6 +1400,7 @@ int main() {
 								case 0: FunctionGenerator.bias_B++; break;
 								case 1: FunctionGenerator.bias_B += 10; break;
 								case 2: FunctionGenerator.bias_B += 100; break;
+								default: break;
 							}
 						}
 					}
@@ -1186,6 +1411,7 @@ int main() {
 								case 0: FunctionGenerator.bias_B--; break;
 								case 1: FunctionGenerator.bias_B -= 10; break;
 								case 2: FunctionGenerator.bias_B -= 100; break;
+								default: break;
 							}
 						}
 					}
@@ -1227,6 +1453,78 @@ int main() {
 					}
 					display.stateChanged = true;
 				}
+				break;
+				
+				case PTR_BACK:
+				parameterSelectionActivated = false;
+				functionalityChanged = false;
+				displayPointerActivated = false;
+				lcdParameterChanged = false;
+				displayPointer = PTR_NULL;
+				display.stateChanged = true;
+				display.mainScreen = PARAMS_SCREEN;
+				break;
+				
+				default: break;			}
+		}
+		else if (lcdParameterChanged) {
+			switch(displayPointer) {
+				case PTR_BRIGHT:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					lcdFunctionChanged = true;
+					if (LCD.brightness >= 100) LCD.brightness = 100;
+					else LCD.brightness++;
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					lcdFunctionChanged = true;
+					if (LCD.brightness <= 0) LCD.brightness = 0;
+					else LCD.brightness--;
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					lcdParameterChanged = false;
+					displayPointer = PTR_NULL;
+					display.stateChanged = true;
+				}
+				break;
+				
+				case PTR_CONTR:
+				if (encoderState == CW) {
+					display.stateChanged = true;
+					lcdFunctionChanged = true;
+					if (LCD.contrast >= 100) LCD.contrast = 100;
+					else LCD.brightness++;
+				}
+				else if (encoderState == CCW) {
+					display.stateChanged = true;
+					lcdFunctionChanged = true;
+					if (LCD.contrast <= 0) LCD.contrast = 0;
+					else LCD.contrast--;
+				}
+				
+				else if (switchState) {
+					parameterSelectionActivated = false;
+					functionalityChanged = false;
+					displayPointerActivated = false;
+					lcdParameterChanged = false;
+					displayPointer = PTR_NULL;
+					display.stateChanged = true;
+				}
+				break;
+				
+				case PTR_BACK:
+				parameterSelectionActivated = false;
+				functionalityChanged = false;
+				displayPointerActivated = false;
+				lcdParameterChanged = false;
+				displayPointer = PTR_NULL;
+				display.stateChanged = true;
+				display.mainScreen = PARAMS_SCREEN;
 				break;
 				
 				default: break;
