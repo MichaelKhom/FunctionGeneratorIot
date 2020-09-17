@@ -14,25 +14,13 @@
 #include <avr/eeprom.h>
 
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-/*-----------------------------*/
-/*--  PORT I/O Definitions	 --*/
 
 // #define PRE_PROG
-// #define SKIP_LOGO
-// #define INITIATE_WLAN_PAIRING
-// #define INITIATE_DIRECT_PAIRING
-// #define PERFORM_FG_TEST
-// #define TEST_BUZZER
-// #define TEST_ADC
-// #define RGB_LED_SUPPORT
-// #define TEST_UART
-
-//#define ESP32 
-#define ESP8266
 
 #define POSITIVE false
 #define NEGATIVE true
 
+/* Constants */
 #define VDD	  3.3
 #define RES_0 820
 #define RES_1 470
@@ -54,6 +42,7 @@
 #define POWER_CMD_LENGTH 8
 #define DELAY_COMMAND_MS 1000
 #define DELAY_DATA_MS 10
+
 /* SPI Chip Enable  */
 #define SPI_CE_DDR		DDRC
 #define LCD_POT_DDR		DDRA
@@ -75,7 +64,6 @@
 
 #define ENCODER_A (1 << PINB2)
 #define ENCODER_B (1 << PINB3)
-#define UI_PTR '>'
 
 /* LCD Definitions */
 #define LCD_CONTROL_DDR		DDRB
@@ -127,10 +115,12 @@
 #define PS_HOLD (1 << PINA2)
 #define BUZZER	(1 << PINA3)
 
-#define ENABLE_DEVICE()		MISC_PORT |= PS_HOLD	// Enable interrupt on RX complete
-#define DISABLE_DEVICE()	MISC_PORT &= ~PS_HOLD	// Disable RX interrupt
-#define BUZZER_H()		MISC_PORT |= BUZZER	// Enable interrupt on RX complete
-#define BUZZER_L()	MISC_PORT &= ~BUZZER	// Disable RX interrupt
+/* Macro Functions */
+#define ENABLE_DEVICE()		MISC_PORT |= PS_HOLD	
+#define DISABLE_DEVICE()	MISC_PORT &= ~PS_HOLD	
+#define BUZZER_H()		MISC_PORT |= BUZZER	
+#define BUZZER_L()	MISC_PORT &= ~BUZZER
+
 //#define ENABLE_TIMER()  0 // TCCR1B |= (1 << CS10) | (1 << CS12)
 //#define DISABLE_TIMER() 0 //TCCR1B &= ~(1 << CS10) & ~(1 << CS12)
 
@@ -143,21 +133,7 @@ do                          \
 	}                       \
 } while(0)
 
-#define ADC_V true
-#define CMP_V false
-
-#define FG_DATA_LENGTH 32
-#define MAX_COMMAND_LENGTH 128
-#define FG_DATA_START_NUM 9
-#define NUMBER_OF_FREQUENCY_DIGITS 8
-#define MAXIMUM_COMMAND_RETRIES 20
-#define TIMER_PERIOD 1 // In SEC
-#define TIMER_COMPARE_VALUE (F_CPU / 1024) * TIMER_PERIOD
-
-#define BRIGHTNESS 0
-#define CONTRAST 1
-#define VOLUME 2
-
+/* LCD Displays */ 
 #define LCD_MAIN_STRING_1			  " Channel:X, Type:XXX"
 #define LCD_MAIN_STRING_2			  " Amplitude: X.XX[V] "
 #define LCD_MAIN_STRING_3			  " Freq: X.XXX.XXX[Hz]"
@@ -184,22 +160,26 @@ do                          \
 #define LCD_SHUTDOWN_STRING_4		  "       <BACK>       "
 
 typedef enum EncoderStates {NONE, CW, CCW} EncoderState;
+typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCREEN_B, PARAMS_SCREEN, SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
+typedef enum DisplayPointers { PTR_NULL, PTR_BACK,
+	PTR_TYPE_A, PTR_FREQ_A, PTR_BIAS_A, PTR_AMP_A, PTR_TYPE_B, PTR_FREQ_B, PTR_BIAS_B, PTR_AMP_B,
+	PTR_SETT,  PTR_SHUTDOWN,
+	PTR_SAVE_PROF, PTR_LOAD_PROF,
+	PTR_BRIGHT, PTR_CONTR,
+} DisplayPointer;
 
 enum Device { DACA = 1, DACB, DACA_BIAS, DACB_BIAS, FG0, FG1, LCD_POT };
 enum WaveformType { SINE = 1, TRIANGLE, SQUARE, DC, OFF };
 enum LEDState { RED = 1, GREEN, BLUE, LED_OFF };
 
-typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCREEN_B, PARAMS_SCREEN, 
-						   SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
-						   
-typedef enum DisplayPointers { PTR_NULL, PTR_BACK,
-							   PTR_TYPE_A, PTR_FREQ_A, PTR_BIAS_A, PTR_AMP_A, PTR_TYPE_B, PTR_FREQ_B, PTR_BIAS_B, PTR_AMP_B, 
-							   PTR_SETT,  PTR_SHUTDOWN,
-							   PTR_SAVE_PROF, PTR_LOAD_PROF,
-							   PTR_BRIGHT, PTR_CONTR,
-							   } DisplayPointer;
+struct {
+	volatile bool previousA;
+	volatile bool previousB;
+	uint8_t encoderSeqCntCW;
+	uint8_t encoderSeqCntCCW;
+} Encoder;
 
-struct MAIN_STRUCTURE {
+struct {
 	uint32_t frequency_A, frequency_B;
 	uint16_t amplitude_A, amplitude_B;
 	enum WaveformType output_type_A, output_type_B;
@@ -207,7 +187,7 @@ struct MAIN_STRUCTURE {
 	bool bias_A_sign, bias_B_sign;
 } FunctionGenerator;
 
-struct PowerStatus_STRUCTURE {
+struct {
 	uint8_t battery_voltage;
 	bool   ac_power_PowerStatus;
 } PowerStatus;
@@ -234,42 +214,42 @@ typedef struct {
 	MainScreen mainScreen;
 } Screen;
 
-struct {
-	volatile bool previousA;
-	volatile bool previousB;
-	uint8_t encoderSeqCntCW;
-	uint8_t encoderSeqCntCCW;
-} Encoder;
+void Buzzer_Beep();
+void Buzzer_PlayMelody(bool power_on);
 
+EncoderState Main_PollEncoder();
+bool Main_PollSwitch();
+void Main_ShutdownDevice(bool is_erase_requested);
+void Main_UintToString(uint32_t number, char *string, uint8_t length);
 
-void beep();
-void playMelody(bool power_on);
-void shutdownSequence(bool is_erase_requested);
 void Init_Timer();
 void Init_Ports();
 void Init_Device();
 void Init_ADC();
 void Init_UI();
-void selectOutputType(enum Device device, enum WaveformType waveformType);
-void setFunction(enum Device device, uint32_t waveFrequency, enum WaveformType mode);
-int setAmplitude(uint16_t valueIn, enum Device device);
-bool pollSwitch();
-EncoderState pollEncoder();
-void brightnessAnimation();
-void setContrastLCD(uint8_t value);
-int setBrightnessLCD(uint8_t value);
-int setBiasDC(enum Device device, uint16_t value, bool sign);
-void erase_EEPROM_1K();
-uint8_t getParametersLCD(uint8_t parameter);
-void updateBatteryStatus();
-void updateAcStatus();
-void clearWaveformValues();
-void clearUIValues();
-void clearLCDParameterValues();
-void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive);
-void handleFunctionGenerator(DisplayPointer displayPointer);
-void handleLCDParameter(DisplayPointer displayPointer);
-void uintToString(uint32_t number, char *string, uint8_t length);
+void Init_ClearWaveformValues();
+void Init_ClearUIValues();
+void Init_ClearLCDParameterValues();
+
+void FG_SelectOutputType(enum Device device, enum WaveformType waveformType);
+void FG_SetFunction(enum Device device, uint32_t waveFrequency, enum WaveformType mode);
+int FG_SetAmplitude(uint16_t valueIn, enum Device device);
+int FG_SetBiasDC(enum Device device, uint16_t value, bool sign);
+
+void LCD_BrightnessAnimation();
+void LCD_SetContrast(uint8_t value);
+int LCD_SetBrightness(uint8_t value);
+uint8_t LCD_GetParameters(uint8_t parameter);
+
+void EEPROM_Erase_1K();
 void EEPROM_SaveProfile();
 void EEPROM_LoadProfile();
+
+void Power_UpdateBatteryStatus();
+void Power_UpdateAcStatus();
+
+void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive);
+void Handle_FunctionGenerator(DisplayPointer displayPointer);
+void Handle_LCDParameter(DisplayPointer displayPointer);
+
 #endif /* MAIN_H_ */

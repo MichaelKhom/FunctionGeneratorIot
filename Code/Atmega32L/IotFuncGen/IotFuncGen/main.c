@@ -10,7 +10,7 @@
 #include "Headers\LCD.h"
 #include "Headers\Version.h"
 
-void beep() { // d - f - a
+void Buzzer_Beep() { // d - f - a
 		for (uint8_t ptrm = 0; ptrm < 30; ptrm++) {
 			MISC_PORT |= BUZZER;
 			_delay_us(426);
@@ -19,7 +19,7 @@ void beep() { // d - f - a
 		}
 }
 
-void playMelody(bool power_on) {
+void Buzzer_PlayMelody(bool power_on) {
 	if (power_on) {
 		for (uint8_t ptrm = 0; ptrm < 236; ptrm++) {
 			MISC_PORT |= BUZZER;
@@ -62,17 +62,17 @@ void playMelody(bool power_on) {
 	}
 }
 
-void shutdownSequence(bool is_erase_requested) {
-	beep();
-	clear_LCD();
-	print_LCD_line("<<Shutdown request>>", LCD_LINE_1);
-	print_LCD_line("Device shutting down", LCD_LINE_2);
-	print_LCD_line("in X sec            ", LCD_LINE_3);
+void Main_ShutdownDevice(bool is_erase_requested) {
+	Buzzer_Beep();
+	LCD_Clear();
+	LCD_PrintLine("<<Shutdown request>>", LCD_LINE_1);
+	LCD_PrintLine("Device shutting down", LCD_LINE_2);
+	LCD_PrintLine("in X sec            ", LCD_LINE_3);
 	for (uint8_t cntx = 5; cntx > 0; cntx--) {
-		print_LCD_char(cntx + '0',LCD_LINE_3, 3);
+		LCD_PrintChar(cntx + '0',LCD_LINE_3, 3);
 		_delay_ms(DELAY_COMMAND_MS);
 	}
-	playMelody(false);
+	Buzzer_PlayMelody(false);
 	DISABLE_DEVICE();
 }
 
@@ -104,10 +104,10 @@ void Init_Ports() {
 void Init_Device() {
 	Init_Ports();
 	ENABLE_DEVICE();
-	Init_SPI_All();
-	Init_LCD();
+	SPI_InitAll();
+	LCD_Init();
 	_delay_ms(DELAY_COMMAND_MS);
-	Init_LCD_4bit();
+	LCD_Init4bit();
 	Init_UART();
 	Init_ADC();
 }
@@ -118,14 +118,14 @@ void Init_ADC() {
 }
 
 void Init_UI() {
-	brightnessAnimation();
-	setContrastLCD(100);
-	LCD_logo_display();
-	playMelody(true);
+	LCD_BrightnessAnimation();
+	LCD_SetContrast(100);
+	LCD_LogoDisplay();
+	Buzzer_PlayMelody(true);
 	_delay_ms(2 * DELAY_COMMAND_MS);
 }
 
-void selectOutputType(enum Device device, enum WaveformType waveformType) {
+void FG_SelectOutputType(enum Device device, enum WaveformType waveformType) {
 	switch(waveformType) {
 		case SQUARE:
 			if (device == FG0) FG_SEL_PORT &= ~FG0_SEL;
@@ -138,8 +138,8 @@ void selectOutputType(enum Device device, enum WaveformType waveformType) {
 	}
 }
 
-void setFunction(enum Device device, uint32_t waveFrequency, enum WaveformType mode) {
-	Init_SPI_AD9834();
+void FG_SetFunction(enum Device device, uint32_t waveFrequency, enum WaveformType mode) {
+	SPI_InitAD9834();
 	waveFrequency *= AD9834_FREQ_FACTOR;
 	uint16_t freq_reg_lsb = waveFrequency & 0x0003FFF;
 	uint16_t freq_reg_msb = ((waveFrequency >> 14) & 0x0003FFF);
@@ -148,31 +148,31 @@ void setFunction(enum Device device, uint32_t waveFrequency, enum WaveformType m
 	uint8_t freq_reg_msb_a = ((freq_reg_msb >> 8) & 0x3F);
 	uint8_t freq_reg_msb_b = (freq_reg_msb & 0xFF);
 		
-	SPI_write_16bit(AD9834_CONSECUTIVE_WRITE,0x00,device);
-	SPI_write_16bit(AD9834_FREQUENCY_REGISTER_ADDR |freq_reg_lsb_a, freq_reg_lsb_b, device);
-	SPI_write_16bit(AD9834_FREQUENCY_REGISTER_ADDR |freq_reg_msb_a, freq_reg_msb_b, device);
-	SPI_write_16bit(AD9834_PHASE_REGISTER_ADDR ,0x00, device);
+	SPI_Write16Bit(AD9834_CONSECUTIVE_WRITE,0x00,device);
+	SPI_Write16Bit(AD9834_FREQUENCY_REGISTER_ADDR |freq_reg_lsb_a, freq_reg_lsb_b, device);
+	SPI_Write16Bit(AD9834_FREQUENCY_REGISTER_ADDR |freq_reg_msb_a, freq_reg_msb_b, device);
+	SPI_Write16Bit(AD9834_PHASE_REGISTER_ADDR ,0x00, device);
 	switch(mode) {
-		case SINE: SPI_write_16bit(AD9834_EXIT_RESET ,OPBITEN, device); break;
-		case TRIANGLE: SPI_write_16bit(AD9834_EXIT_RESET, MODE, device); break;
-		case SQUARE: SPI_write_16bit(AD9834_EXIT_RESET, OPBITEN | DIV2, device); break;
-		default: SPI_write_16bit(AD9834_EXIT_RESET, SLEEP1, device); break;
+		case SINE: SPI_Write16Bit(AD9834_EXIT_RESET ,OPBITEN, device); break;
+		case TRIANGLE: SPI_Write16Bit(AD9834_EXIT_RESET, MODE, device); break;
+		case SQUARE: SPI_Write16Bit(AD9834_EXIT_RESET, OPBITEN | DIV2, device); break;
+		default: SPI_Write16Bit(AD9834_EXIT_RESET, SLEEP1, device); break;
 		}
-		selectOutputType(device, mode);
-	Init_SPI_All();
+		FG_SelectOutputType(device, mode);
+	SPI_InitAll();
 }
 
-int setAmplitude(uint16_t valueIn, enum Device device) {
+int FG_SetAmplitude(uint16_t valueIn, enum Device device) {
 	uint16_t value = 4095 - valueIn;
 	uint8_t dac_msb = ((value >> 8) & 0x0F);
 	uint8_t dac_lsb = value & 0xFF;
-	if (device == FG0)		SPI_write_16bit(AMPLITUDE_A_ADDR | dac_msb, dac_lsb, DACA);
-	else if (device == FG1) SPI_write_16bit(AMPLITUDE_B_ADDR | dac_msb, dac_lsb, DACB);
+	if (device == FG0)		SPI_Write16Bit(AMPLITUDE_A_ADDR | dac_msb, dac_lsb, DACA);
+	else if (device == FG1) SPI_Write16Bit(AMPLITUDE_B_ADDR | dac_msb, dac_lsb, DACB);
 	else return -1; 
 	return 0;
 }
 
-bool pollSwitch() {
+bool Main_PollSwitch() {
 	if (!(PB_PIN & S_INT)) {
 		while(!(PB_PIN & S_INT));
 		return true; 
@@ -180,7 +180,7 @@ bool pollSwitch() {
 	else return false; 	
 }
 
-EncoderState pollEncoder() {
+EncoderState Main_PollEncoder() {
 	EncoderState state = NONE;
 	volatile bool currentB = PIN_ENCODER & (1 << ENCODER_B);
 	volatile bool currentA = PIN_ENCODER & (1 << ENCODER_A);
@@ -211,39 +211,39 @@ EncoderState pollEncoder() {
 	return state;
 }
 
-void brightnessAnimation() {
+void LCD_BrightnessAnimation() {
 	for (uint8_t ix = 0; ix < 101; ix = ix + 1) {
-		setBrightnessLCD(ix);
+		LCD_SetBrightness(ix);
 		_delay_ms(10);
 	}
 }
 
-void setContrastLCD(uint8_t value) {
+void LCD_SetContrast(uint8_t value) {
 	uint8_t final_value = (value * MAX_8BIT) / 100;
-	SPI_write_16bit(CONTRAST_ADDR,255 - final_value,LCD_POT);
+	SPI_Write16Bit(CONTRAST_ADDR,255 - final_value,LCD_POT);
 }
 
-int setBrightnessLCD(uint8_t value) {
+int LCD_SetBrightness(uint8_t value) {
 	if (value > 100) return -1;
 	value = 75 + ((value * 25) / 100);
 	uint16_t transformed_val = (value * DAC_DC_RATIO);
 	uint8_t byte_a = (transformed_val >> 8) & 0x0F;
 	uint8_t byte_b = transformed_val & 0xFF; 
-	SPI_write_16bit(VOLUME_ADDR | byte_a ,byte_b ,DACB);
+	SPI_Write16Bit(VOLUME_ADDR | byte_a ,byte_b ,DACB);
 	return 0;
 }
 
-int setBiasDC(enum Device device, uint16_t value, bool sign) {
+int FG_SetBiasDC(enum Device device, uint16_t value, bool sign) {
 	uint8_t reg_msb = (value >> 8) & 0x0F;
 	uint8_t reg_lsb = value & 0xFF;
 		switch(device) {
 			case FG0:
-				if (sign) SPI_write_16bit(BIAS_A_NEG_ADDR | reg_msb, reg_lsb, DACA_BIAS);
-				else	  SPI_write_16bit(BIAS_A_POS_ADDR | reg_msb, reg_lsb, DACA_BIAS);
+				if (sign) SPI_Write16Bit(BIAS_A_NEG_ADDR | reg_msb, reg_lsb, DACA_BIAS);
+				else	  SPI_Write16Bit(BIAS_A_POS_ADDR | reg_msb, reg_lsb, DACA_BIAS);
 				break;
 			case FG1:
-				if (sign) SPI_write_16bit(BIAS_B_NEG_ADDR | reg_msb, reg_lsb, DACB_BIAS);
-				else	  SPI_write_16bit(BIAS_B_POS_ADDR | reg_msb, reg_lsb, DACB_BIAS);
+				if (sign) SPI_Write16Bit(BIAS_B_NEG_ADDR | reg_msb, reg_lsb, DACB_BIAS);
+				else	  SPI_Write16Bit(BIAS_B_POS_ADDR | reg_msb, reg_lsb, DACB_BIAS);
 				break;
 			default: return -1;	// Wrong device
 				break;
@@ -251,18 +251,18 @@ int setBiasDC(enum Device device, uint16_t value, bool sign) {
 	return 0;
 	}
 
-void erase_EEPROM_1K() {
+void EEPROM_Erase_1K() {
 	for (uint16_t ptr = 0; ptr < EEPROM_ADRESS_SPAN + 1; ptr++) eeprom_write_byte((uint8_t *)ptr, 0);
 }
 
-void updateBatteryStatus() {
+void Power_UpdateBatteryStatus() {
 	ADMUX = 0;
 	ADCSRA |= (1 << ADSC);
 	while(ADCSRA & (1 << ADSC));
 	PowerStatus.battery_voltage = ADC * BATTERY_ADC_FACTOR_A * BATTERY_ADC_FACTOR_B / 10;
 }
 
-void updateAcStatus() {
+void Power_UpdateAcStatus() {
 	volatile uint16_t adcx = 0;
 	ADMUX |= 1;
 	ADCSRA |= (1 << ADSC);
@@ -275,7 +275,7 @@ void updateAcStatus() {
 	else PowerStatus.ac_power_PowerStatus = true;
 }
 
-void clearWaveformValues() {
+void Init_ClearWaveformValues() {
 	FunctionGenerator.frequency_A = 0; 
 	FunctionGenerator.frequency_B = 0;
 	FunctionGenerator.amplitude_A = 0; 
@@ -288,7 +288,7 @@ void clearWaveformValues() {
 	FunctionGenerator.bias_B_sign = POSITIVE;
 }
 
-void clearUIValues() {
+void Init_ClearUIValues() {
 	memset(UI.frequency_A, 0, 7);
 	memset(UI.frequency_B, 0, 7);
 	memset(UI.amplitude_A, 0, 2);
@@ -304,48 +304,48 @@ void clearUIValues() {
 	memset(UI.batteryPowerStatus, 0, 3);
 }
 
-void clearLCDParameterValues() {
+void Init_ClearLCDParameterValues() {
 	LCD.brightness = 100;
 	LCD.contrast = 100;
 }
 
-void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive) {
+void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive) {
 	
 	if (pointerActive) {
 		switch(displayPointer) {
 			case PTR_NULL:
-			print_LCD_char(' ', LCD_LINE_1, 0);
-			print_LCD_char(' ', LCD_LINE_2, 0);
-			print_LCD_char(' ', LCD_LINE_3, 0);
-			print_LCD_char(' ', LCD_LINE_4, 0);
+			LCD_PrintChar(' ', LCD_LINE_1, 0);
+			LCD_PrintChar(' ', LCD_LINE_2, 0);
+			LCD_PrintChar(' ', LCD_LINE_3, 0);
+			LCD_PrintChar(' ', LCD_LINE_4, 0);
 			break;
 			
 			case PTR_TYPE_A: case PTR_TYPE_B: 
-			print_LCD_char('>', LCD_LINE_1, 0); 
-			print_LCD_char(' ', LCD_LINE_2, 0);
-			print_LCD_char(' ', LCD_LINE_3, 0);
-			print_LCD_char(' ', LCD_LINE_4, 0);
+			LCD_PrintChar('>', LCD_LINE_1, 0); 
+			LCD_PrintChar(' ', LCD_LINE_2, 0);
+			LCD_PrintChar(' ', LCD_LINE_3, 0);
+			LCD_PrintChar(' ', LCD_LINE_4, 0);
 			break;
 			
 			case PTR_AMP_A: case PTR_AMP_B: case PTR_SAVE_PROF: case PTR_BRIGHT:
-			print_LCD_char(' ', LCD_LINE_1, 0);
-			print_LCD_char('>', LCD_LINE_2, 0);
-			print_LCD_char(' ', LCD_LINE_3, 0);
-			print_LCD_char(' ', LCD_LINE_4, 0);
+			LCD_PrintChar(' ', LCD_LINE_1, 0);
+			LCD_PrintChar('>', LCD_LINE_2, 0);
+			LCD_PrintChar(' ', LCD_LINE_3, 0);
+			LCD_PrintChar(' ', LCD_LINE_4, 0);
 			break;
 			
 			case PTR_FREQ_A: case PTR_FREQ_B: case PTR_SETT: case PTR_LOAD_PROF: case PTR_CONTR:
-			print_LCD_char(' ', LCD_LINE_1, 0);
-			print_LCD_char(' ', LCD_LINE_2, 0);
-			print_LCD_char('>', LCD_LINE_3, 0);
-			print_LCD_char(' ', LCD_LINE_4, 0);
+			LCD_PrintChar(' ', LCD_LINE_1, 0);
+			LCD_PrintChar(' ', LCD_LINE_2, 0);
+			LCD_PrintChar('>', LCD_LINE_3, 0);
+			LCD_PrintChar(' ', LCD_LINE_4, 0);
 			break;
 			
 			case PTR_BIAS_A: case PTR_BIAS_B: case PTR_SHUTDOWN: case PTR_BACK:
-			print_LCD_char(' ', LCD_LINE_1, 0);
-			print_LCD_char(' ', LCD_LINE_2, 0);
-			print_LCD_char(' ', LCD_LINE_3, 0);
-			print_LCD_char('>', LCD_LINE_4, 0);
+			LCD_PrintChar(' ', LCD_LINE_1, 0);
+			LCD_PrintChar(' ', LCD_LINE_2, 0);
+			LCD_PrintChar(' ', LCD_LINE_3, 0);
+			LCD_PrintChar('>', LCD_LINE_4, 0);
 			break;
 		}
 	}
@@ -418,63 +418,63 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 				break;
 			}
 			
-			print_LCD_char(UI.type_B[0], LCD_LINE_1, 17);
-			print_LCD_char(UI.type_B[1], LCD_LINE_1, 18);
-			print_LCD_char(UI.type_B[2], LCD_LINE_1, 19);
+			LCD_PrintChar(UI.type_B[0], LCD_LINE_1, 17);
+			LCD_PrintChar(UI.type_B[1], LCD_LINE_1, 18);
+			LCD_PrintChar(UI.type_B[2], LCD_LINE_1, 19);
 			break;
 			
 			case PTR_AMP_A:
-			uintToString(FunctionGenerator.amplitude_A, &UI.amplitude_A[0], 2);
-			print_LCD_char(UI.amplitude_A[0], LCD_LINE_2, 14);
-			print_LCD_char(UI.amplitude_A[1], LCD_LINE_2, 15);
+			Main_UintToString(FunctionGenerator.amplitude_A, &UI.amplitude_A[0], 2);
+			LCD_PrintChar(UI.amplitude_A[0], LCD_LINE_2, 14);
+			LCD_PrintChar(UI.amplitude_A[1], LCD_LINE_2, 15);
 			break;
 				
 			case PTR_AMP_B:
-			uintToString(FunctionGenerator.amplitude_B, &UI.amplitude_B[0], 2);
-			print_LCD_char(UI.amplitude_B[0], LCD_LINE_2, 14);
-			print_LCD_char(UI.amplitude_B[1], LCD_LINE_2, 15);
+			Main_UintToString(FunctionGenerator.amplitude_B, &UI.amplitude_B[0], 2);
+			LCD_PrintChar(UI.amplitude_B[0], LCD_LINE_2, 14);
+			LCD_PrintChar(UI.amplitude_B[1], LCD_LINE_2, 15);
 			break;
 			
 			case PTR_FREQ_A:
-			uintToString(FunctionGenerator.frequency_A, &UI.frequency_A[0], 7);
-			print_LCD_char(UI.frequency_A[0], LCD_LINE_3, 7);
-			print_LCD_char(UI.frequency_A[1], LCD_LINE_3, 9);
-			print_LCD_char(UI.frequency_A[2], LCD_LINE_3, 10);
-			print_LCD_char(UI.frequency_A[3], LCD_LINE_3, 11);
-			print_LCD_char(UI.frequency_A[4], LCD_LINE_3, 13);
-			print_LCD_char(UI.frequency_A[5], LCD_LINE_3, 14);
-			print_LCD_char(UI.frequency_A[6], LCD_LINE_3, 15);
+			Main_UintToString(FunctionGenerator.frequency_A, &UI.frequency_A[0], 7);
+			LCD_PrintChar(UI.frequency_A[0], LCD_LINE_3, 7);
+			LCD_PrintChar(UI.frequency_A[1], LCD_LINE_3, 9);
+			LCD_PrintChar(UI.frequency_A[2], LCD_LINE_3, 10);
+			LCD_PrintChar(UI.frequency_A[3], LCD_LINE_3, 11);
+			LCD_PrintChar(UI.frequency_A[4], LCD_LINE_3, 13);
+			LCD_PrintChar(UI.frequency_A[5], LCD_LINE_3, 14);
+			LCD_PrintChar(UI.frequency_A[6], LCD_LINE_3, 15);
 			break;
 			
 			case PTR_FREQ_B:
-			uintToString(FunctionGenerator.frequency_B, &UI.frequency_B[0], 7);
-			print_LCD_char(UI.frequency_B[0], LCD_LINE_3, 7);
-			print_LCD_char(UI.frequency_B[1], LCD_LINE_3, 9);
-			print_LCD_char(UI.frequency_B[2], LCD_LINE_3, 10);
-			print_LCD_char(UI.frequency_B[3], LCD_LINE_3, 11);
-			print_LCD_char(UI.frequency_B[4], LCD_LINE_3, 13);
-			print_LCD_char(UI.frequency_B[5], LCD_LINE_3, 14);
-			print_LCD_char(UI.frequency_B[6], LCD_LINE_3, 15);
+			Main_UintToString(FunctionGenerator.frequency_B, &UI.frequency_B[0], 7);
+			LCD_PrintChar(UI.frequency_B[0], LCD_LINE_3, 7);
+			LCD_PrintChar(UI.frequency_B[1], LCD_LINE_3, 9);
+			LCD_PrintChar(UI.frequency_B[2], LCD_LINE_3, 10);
+			LCD_PrintChar(UI.frequency_B[3], LCD_LINE_3, 11);
+			LCD_PrintChar(UI.frequency_B[4], LCD_LINE_3, 13);
+			LCD_PrintChar(UI.frequency_B[5], LCD_LINE_3, 14);
+			LCD_PrintChar(UI.frequency_B[6], LCD_LINE_3, 15);
 			break;
 			
 			case PTR_BIAS_A: 
 			if (FunctionGenerator.bias_A_sign == POSITIVE) UI.bias_A_sign = '+';
 			else UI.bias_A_sign = '-';
-			uintToString(FunctionGenerator.bias_A, &UI.bias_A[0], 3);
-			print_LCD_char(UI.bias_A_sign, LCD_LINE_4, 7);
-			print_LCD_char(UI.bias_A[0], LCD_LINE_4, 8);
-			print_LCD_char(UI.bias_A[1], LCD_LINE_4, 10);
-			print_LCD_char(UI.bias_A[2], LCD_LINE_4, 11);
+			Main_UintToString(FunctionGenerator.bias_A, &UI.bias_A[0], 3);
+			LCD_PrintChar(UI.bias_A_sign, LCD_LINE_4, 7);
+			LCD_PrintChar(UI.bias_A[0], LCD_LINE_4, 8);
+			LCD_PrintChar(UI.bias_A[1], LCD_LINE_4, 10);
+			LCD_PrintChar(UI.bias_A[2], LCD_LINE_4, 11);
 			break;
 			
 			case PTR_BIAS_B:
 			if (FunctionGenerator.bias_B_sign == POSITIVE) UI.bias_B_sign = '+';
 			else UI.bias_B_sign = '-';
-			uintToString(FunctionGenerator.bias_A, &UI.bias_B[0], 3);
-			print_LCD_char(UI.bias_B_sign, LCD_LINE_4, 7);
-			print_LCD_char(UI.bias_B[0], LCD_LINE_4, 8);
-			print_LCD_char(UI.bias_B[1], LCD_LINE_4, 10);
-			print_LCD_char(UI.bias_B[2], LCD_LINE_4, 11);
+			Main_UintToString(FunctionGenerator.bias_A, &UI.bias_B[0], 3);
+			LCD_PrintChar(UI.bias_B_sign, LCD_LINE_4, 7);
+			LCD_PrintChar(UI.bias_B[0], LCD_LINE_4, 8);
+			LCD_PrintChar(UI.bias_B[1], LCD_LINE_4, 10);
+			LCD_PrintChar(UI.bias_B[2], LCD_LINE_4, 11);
 			break;
 			default: break;			
 			
@@ -484,17 +484,17 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 	else if (lcdParamActive) {
 		switch(displayPointer) {
 			case PTR_BRIGHT:			
-			uintToString(LCD.brightness, UI.lcd_brightness, 3);
-			print_LCD_char(UI.lcd_brightness[0], LCD_LINE_2, 13);
-			print_LCD_char(UI.lcd_brightness[1], LCD_LINE_2, 14);
-			print_LCD_char(UI.lcd_brightness[2], LCD_LINE_2, 15);
+			Main_UintToString(LCD.brightness, UI.lcd_brightness, 3);
+			LCD_PrintChar(UI.lcd_brightness[0], LCD_LINE_2, 13);
+			LCD_PrintChar(UI.lcd_brightness[1], LCD_LINE_2, 14);
+			LCD_PrintChar(UI.lcd_brightness[2], LCD_LINE_2, 15);
 			break;
 
 			case PTR_CONTR:
-			uintToString(LCD.contrast, UI.lcd_contrast, 3);
-			print_LCD_char(UI.lcd_contrast[0], LCD_LINE_3, 13);
-			print_LCD_char(UI.lcd_contrast[1], LCD_LINE_3, 14);
-			print_LCD_char(UI.lcd_contrast[2], LCD_LINE_3, 15);
+			Main_UintToString(LCD.contrast, UI.lcd_contrast, 3);
+			LCD_PrintChar(UI.lcd_contrast[0], LCD_LINE_3, 13);
+			LCD_PrintChar(UI.lcd_contrast[1], LCD_LINE_3, 14);
+			LCD_PrintChar(UI.lcd_contrast[2], LCD_LINE_3, 15);
 			break;
 			
 			default: break;
@@ -504,106 +504,106 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 	else {
 		switch(screen) {
 			case MAIN_SCREEN_A:
-			print_LCD_line(LCD_MAIN_STRING_1, LCD_LINE_1);
-			print_LCD_line(LCD_MAIN_STRING_2, LCD_LINE_2);
-			print_LCD_line(LCD_MAIN_STRING_3, LCD_LINE_3);
-			print_LCD_line(LCD_MAIN_STRING_4, LCD_LINE_4);
+			LCD_PrintLine(LCD_MAIN_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_MAIN_STRING_2, LCD_LINE_2);
+			LCD_PrintLine(LCD_MAIN_STRING_3, LCD_LINE_3);
+			LCD_PrintLine(LCD_MAIN_STRING_4, LCD_LINE_4);
 			
-			print_LCD_char(UI.type_A[0], LCD_LINE_1, 17);
-			print_LCD_char(UI.type_A[1], LCD_LINE_1, 18);
-			print_LCD_char(UI.type_A[2], LCD_LINE_1, 19);
+			LCD_PrintChar(UI.type_A[0], LCD_LINE_1, 17);
+			LCD_PrintChar(UI.type_A[1], LCD_LINE_1, 18);
+			LCD_PrintChar(UI.type_A[2], LCD_LINE_1, 19);
 			
-			print_LCD_char(UI.amplitude_A[0], LCD_LINE_2, 14);
-			print_LCD_char(UI.amplitude_A[1], LCD_LINE_2, 15);
+			LCD_PrintChar(UI.amplitude_A[0], LCD_LINE_2, 14);
+			LCD_PrintChar(UI.amplitude_A[1], LCD_LINE_2, 15);
 			
-			print_LCD_char(UI.frequency_A[0], LCD_LINE_3, 7);
-			print_LCD_char(UI.frequency_A[1], LCD_LINE_3, 9);
-			print_LCD_char(UI.frequency_A[2], LCD_LINE_3, 10);
-			print_LCD_char(UI.frequency_A[3], LCD_LINE_3, 11);
-			print_LCD_char(UI.frequency_A[4], LCD_LINE_3, 13);
-			print_LCD_char(UI.frequency_A[5], LCD_LINE_3, 14);
-			print_LCD_char(UI.frequency_A[6], LCD_LINE_3, 15);
+			LCD_PrintChar(UI.frequency_A[0], LCD_LINE_3, 7);
+			LCD_PrintChar(UI.frequency_A[1], LCD_LINE_3, 9);
+			LCD_PrintChar(UI.frequency_A[2], LCD_LINE_3, 10);
+			LCD_PrintChar(UI.frequency_A[3], LCD_LINE_3, 11);
+			LCD_PrintChar(UI.frequency_A[4], LCD_LINE_3, 13);
+			LCD_PrintChar(UI.frequency_A[5], LCD_LINE_3, 14);
+			LCD_PrintChar(UI.frequency_A[6], LCD_LINE_3, 15);
 			
-			print_LCD_char(UI.bias_A_sign, LCD_LINE_4, 7);
-			print_LCD_char(UI.bias_A[0], LCD_LINE_4, 8);
-			print_LCD_char(UI.bias_A[1], LCD_LINE_4, 10);
-			print_LCD_char(UI.bias_A[2], LCD_LINE_4, 11);
+			LCD_PrintChar(UI.bias_A_sign, LCD_LINE_4, 7);
+			LCD_PrintChar(UI.bias_A[0], LCD_LINE_4, 8);
+			LCD_PrintChar(UI.bias_A[1], LCD_LINE_4, 10);
+			LCD_PrintChar(UI.bias_A[2], LCD_LINE_4, 11);
 			break;
 			
 			case MAIN_SCREEN_B:
-			print_LCD_line(LCD_MAIN_STRING_1, LCD_LINE_1);
-			print_LCD_line(LCD_MAIN_STRING_2, LCD_LINE_2);
-			print_LCD_line(LCD_MAIN_STRING_3, LCD_LINE_3);
-			print_LCD_line(LCD_MAIN_STRING_4, LCD_LINE_4);
+			LCD_PrintLine(LCD_MAIN_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_MAIN_STRING_2, LCD_LINE_2);
+			LCD_PrintLine(LCD_MAIN_STRING_3, LCD_LINE_3);
+			LCD_PrintLine(LCD_MAIN_STRING_4, LCD_LINE_4);
 			
-			print_LCD_char(UI.type_B[0], LCD_LINE_1, 17);
-			print_LCD_char(UI.type_B[1], LCD_LINE_1, 18);
-			print_LCD_char(UI.type_B[2], LCD_LINE_1, 19);
+			LCD_PrintChar(UI.type_B[0], LCD_LINE_1, 17);
+			LCD_PrintChar(UI.type_B[1], LCD_LINE_1, 18);
+			LCD_PrintChar(UI.type_B[2], LCD_LINE_1, 19);
 			
-			print_LCD_char(UI.amplitude_B[0], LCD_LINE_2, 14);
-			print_LCD_char(UI.amplitude_B[1], LCD_LINE_2, 15);
+			LCD_PrintChar(UI.amplitude_B[0], LCD_LINE_2, 14);
+			LCD_PrintChar(UI.amplitude_B[1], LCD_LINE_2, 15);
 			
-			print_LCD_char(UI.frequency_B[0], LCD_LINE_3, 7);
-			print_LCD_char(UI.frequency_B[1], LCD_LINE_3, 9);
-			print_LCD_char(UI.frequency_B[2], LCD_LINE_3, 10);
-			print_LCD_char(UI.frequency_B[3], LCD_LINE_3, 11);
-			print_LCD_char(UI.frequency_B[4], LCD_LINE_3, 13);
-			print_LCD_char(UI.frequency_B[5], LCD_LINE_3, 14);
-			print_LCD_char(UI.frequency_B[6], LCD_LINE_3, 15);
+			LCD_PrintChar(UI.frequency_B[0], LCD_LINE_3, 7);
+			LCD_PrintChar(UI.frequency_B[1], LCD_LINE_3, 9);
+			LCD_PrintChar(UI.frequency_B[2], LCD_LINE_3, 10);
+			LCD_PrintChar(UI.frequency_B[3], LCD_LINE_3, 11);
+			LCD_PrintChar(UI.frequency_B[4], LCD_LINE_3, 13);
+			LCD_PrintChar(UI.frequency_B[5], LCD_LINE_3, 14);
+			LCD_PrintChar(UI.frequency_B[6], LCD_LINE_3, 15);
 			
-			print_LCD_char(UI.bias_B_sign, LCD_LINE_4, 7);
-			print_LCD_char(UI.bias_B[0], LCD_LINE_4, 8);
-			print_LCD_char(UI.bias_B[1], LCD_LINE_4, 10);
-			print_LCD_char(UI.bias_B[2], LCD_LINE_4, 11);
+			LCD_PrintChar(UI.bias_B_sign, LCD_LINE_4, 7);
+			LCD_PrintChar(UI.bias_B[0], LCD_LINE_4, 8);
+			LCD_PrintChar(UI.bias_B[1], LCD_LINE_4, 10);
+			LCD_PrintChar(UI.bias_B[2], LCD_LINE_4, 11);
 			break;
 			
 			case PARAMS_SCREEN:
-			print_LCD_line(LCD_MAIN_SETTINGS_STRING_1, LCD_LINE_1);
-			print_LCD_line(LCD_MAIN_SETTINGS_STRING_2, LCD_LINE_2);
-			print_LCD_line(LCD_MAIN_SETTINGS_STRING_3, LCD_LINE_3);
-			print_LCD_line(LCD_MAIN_SETTINGS_STRING_4, LCD_LINE_4);
+			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_2, LCD_LINE_2);
+			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_3, LCD_LINE_3);
+			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_4, LCD_LINE_4);
 			
-			uintToString(PowerStatus.battery_voltage, UI.batteryPowerStatus, 3);
-			print_LCD_char(UI.batteryPowerStatus[0], LCD_LINE_1, 13);
-			print_LCD_char(UI.batteryPowerStatus[1], LCD_LINE_1, 15);
-			print_LCD_char(UI.batteryPowerStatus[2], LCD_LINE_1, 16);
+			Main_UintToString(PowerStatus.battery_voltage, UI.batteryPowerStatus, 3);
+			LCD_PrintChar(UI.batteryPowerStatus[0], LCD_LINE_1, 13);
+			LCD_PrintChar(UI.batteryPowerStatus[1], LCD_LINE_1, 15);
+			LCD_PrintChar(UI.batteryPowerStatus[2], LCD_LINE_1, 16);
 			
 			if (PowerStatus.ac_power_PowerStatus) {
-				print_LCD_char('O', LCD_LINE_2, 16);
-				print_LCD_char('N', LCD_LINE_2, 17);
-				print_LCD_char(' ', LCD_LINE_2, 18);
+				LCD_PrintChar('O', LCD_LINE_2, 16);
+				LCD_PrintChar('N', LCD_LINE_2, 17);
+				LCD_PrintChar(' ', LCD_LINE_2, 18);
 			}
 			
 			else {
-				print_LCD_char('O', LCD_LINE_2, 16);
-				print_LCD_char('F', LCD_LINE_2, 17);
-				print_LCD_char('F', LCD_LINE_2, 18);
+				LCD_PrintChar('O', LCD_LINE_2, 16);
+				LCD_PrintChar('F', LCD_LINE_2, 17);
+				LCD_PrintChar('F', LCD_LINE_2, 18);
 			}
 			break;
 			
 			case PROFILE_SCREEN:
-			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_1, LCD_LINE_1);
-			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_2, LCD_LINE_2);
-			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_3, LCD_LINE_3);
-			print_LCD_line(LCD_PROFILE_SETTINGS_STRING_4, LCD_LINE_4);
+			LCD_PrintLine(LCD_PROFILE_SETTINGS_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_PROFILE_SETTINGS_STRING_2, LCD_LINE_2);
+			LCD_PrintLine(LCD_PROFILE_SETTINGS_STRING_3, LCD_LINE_3);
+			LCD_PrintLine(LCD_PROFILE_SETTINGS_STRING_4, LCD_LINE_4);
 			break;
 
 			case LCD_SCREEN:
-			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_1, LCD_LINE_1);
-			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_2, LCD_LINE_2);
-			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_3, LCD_LINE_3);
-			print_LCD_line(LCD_SCREEN_SETTINGS_STRING_4, LCD_LINE_4);
+			LCD_PrintLine(LCD_SCREEN_SETTINGS_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_SCREEN_SETTINGS_STRING_2, LCD_LINE_2);
+			LCD_PrintLine(LCD_SCREEN_SETTINGS_STRING_3, LCD_LINE_3);
+			LCD_PrintLine(LCD_SCREEN_SETTINGS_STRING_4, LCD_LINE_4);
 			
-			uintToString(LCD.brightness, UI.lcd_brightness, 3);
-			uintToString(LCD.contrast, UI.lcd_contrast, 3);
+			Main_UintToString(LCD.brightness, UI.lcd_brightness, 3);
+			Main_UintToString(LCD.contrast, UI.lcd_contrast, 3);
 			
-			print_LCD_char(UI.lcd_brightness[0], LCD_LINE_2, 13);
-			print_LCD_char(UI.lcd_brightness[1], LCD_LINE_2, 14);
-			print_LCD_char(UI.lcd_brightness[2], LCD_LINE_2, 15);
+			LCD_PrintChar(UI.lcd_brightness[0], LCD_LINE_2, 13);
+			LCD_PrintChar(UI.lcd_brightness[1], LCD_LINE_2, 14);
+			LCD_PrintChar(UI.lcd_brightness[2], LCD_LINE_2, 15);
 			
-			print_LCD_char(UI.lcd_contrast[0], LCD_LINE_3, 13);
-			print_LCD_char(UI.lcd_contrast[1], LCD_LINE_3, 14);
-			print_LCD_char(UI.lcd_contrast[2], LCD_LINE_3, 15);
+			LCD_PrintChar(UI.lcd_contrast[0], LCD_LINE_3, 13);
+			LCD_PrintChar(UI.lcd_contrast[1], LCD_LINE_3, 14);
+			LCD_PrintChar(UI.lcd_contrast[2], LCD_LINE_3, 15);
 			break;
 			
 			default: break;
@@ -611,36 +611,36 @@ void handleLCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAct
 	}
 }
 
-void handleFunctionGenerator(DisplayPointer displayPointer) {
+void Handle_FunctionGenerator(DisplayPointer displayPointer) {
 	switch(displayPointer) {
-		case PTR_TYPE_A: case PTR_FREQ_A: setFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A); break;
-		case PTR_TYPE_B: case PTR_FREQ_B: setFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B); break;
-		case PTR_AMP_A: setAmplitude(FunctionGenerator.amplitude_A * MAX_12BIT / 70, FG0); break;
-		case PTR_AMP_B: setAmplitude(FunctionGenerator.amplitude_B * MAX_12BIT / 70, FG1); break;
+		case PTR_TYPE_A: case PTR_FREQ_A: FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A); break;
+		case PTR_TYPE_B: case PTR_FREQ_B: FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B); break;
+		case PTR_AMP_A: FG_SetAmplitude(FunctionGenerator.amplitude_A * MAX_12BIT / 70, FG0); break;
+		case PTR_AMP_B: FG_SetAmplitude(FunctionGenerator.amplitude_B * MAX_12BIT / 70, FG1); break;
 		case PTR_BIAS_A: 
-			if (FunctionGenerator.bias_A_sign == POSITIVE) setBiasDC(FG0, 0, NEGATIVE);
-			else setBiasDC(FG0, 0, POSITIVE);
-			setBiasDC(FG0, FunctionGenerator.bias_A * MAX_12BIT / 330, FunctionGenerator.bias_A_sign);
+			if (FunctionGenerator.bias_A_sign == POSITIVE) FG_SetBiasDC(FG0, 0, NEGATIVE);
+			else FG_SetBiasDC(FG0, 0, POSITIVE);
+			FG_SetBiasDC(FG0, FunctionGenerator.bias_A * MAX_12BIT / 330, FunctionGenerator.bias_A_sign);
 			break;
 		case PTR_BIAS_B:
-			if (FunctionGenerator.bias_B_sign == POSITIVE) setBiasDC(FG1, 0, NEGATIVE);
-			else setBiasDC(FG1, 0, POSITIVE);
-			setBiasDC(FG0, FunctionGenerator.bias_B * MAX_12BIT / 330, FunctionGenerator.bias_B_sign);
+			if (FunctionGenerator.bias_B_sign == POSITIVE) FG_SetBiasDC(FG1, 0, NEGATIVE);
+			else FG_SetBiasDC(FG1, 0, POSITIVE);
+			FG_SetBiasDC(FG0, FunctionGenerator.bias_B * MAX_12BIT / 330, FunctionGenerator.bias_B_sign);
 			break;
 			
 			default: break;
 	}
 }
 
-void handleLCDParameter(DisplayPointer displayPointer) {
+void Handle_LCDParameter(DisplayPointer displayPointer) {
 	switch(displayPointer) {
-		case PTR_BRIGHT: setBrightnessLCD(LCD.brightness); break;
-		case PTR_CONTR: setContrastLCD(LCD.contrast); break;
+		case PTR_BRIGHT: LCD_SetBrightness(LCD.brightness); break;
+		case PTR_CONTR: LCD_SetContrast(LCD.contrast); break;
 		default: break;
 	}
 }
 
-void uintToString(uint32_t number, char *string, uint8_t length) {
+void Main_UintToString(uint32_t number, char *string, uint8_t length) {
 	uint8_t iPtr = 0;
 	while(iPtr < length) {
 		string[length - iPtr - 1] = (number % 10) + '0';
@@ -649,13 +649,13 @@ void uintToString(uint32_t number, char *string, uint8_t length) {
 	}
 }
 
-void LCD_logo_display() {
+void LCD_LogoDisplay() {
 	char lbuff[20];
-	print_LCD_line("Mobile Function Generator", LCD_LINE_1);
+	LCD_PrintLine("Mobile Function Generator", LCD_LINE_1);
 	snprintf(lbuff, 20, " Firmware V%c.%c.%c ", FIRMWARE_VERSION_MAJOR, FIRMWARE_VERSION_MINOR, FIRMWARE_VERSION_BUILD);
-	print_LCD_line(lbuff, LCD_LINE_2);
-	print_LCD_line("  KhomLabs Design   ", LCD_LINE_3);
-	print_LCD_line("  <Initializing...> ", LCD_LINE_4);
+	LCD_PrintLine(lbuff, LCD_LINE_2);
+	LCD_PrintLine("  KhomLabs Design   ", LCD_LINE_3);
+	LCD_PrintLine("  <Initializing...> ", LCD_LINE_4);
 }
 
 void EEPROM_SaveProfile() {
@@ -717,29 +717,29 @@ int main() {
 	display.stateChanged = false;
 	buttonPressCounter = 0;
 	
-	clearWaveformValues();
-	clearUIValues();
-	clearLCDParameterValues();
-	handleLCD(display.mainScreen, PTR_NULL, false, false, false);
+	Init_ClearWaveformValues();
+	Init_ClearUIValues();
+	Init_ClearLCDParameterValues();
+	Handle_LCD(display.mainScreen, PTR_NULL, false, false, false);
 	_delay_ms(1500);
 	
 	while(1) {
 		
-		encoderState = pollEncoder();
-		switchState = pollSwitch();
+		encoderState = Main_PollEncoder();
+		switchState = Main_PollSwitch();
 		
 		if (display.stateChanged) {
 			display.stateChanged = false;
-			handleLCD(display.mainScreen, displayPointer, displayPointerActivated, parameterSelectionActivated, lcdFunctionChanged);
+			Handle_LCD(display.mainScreen, displayPointer, displayPointerActivated, parameterSelectionActivated, lcdFunctionChanged);
 		}
 		if (functionalityChanged) {
 			functionalityChanged = false;
-			handleFunctionGenerator(displayPointer);
+			Handle_FunctionGenerator(displayPointer);
 		}
 		
 		if (lcdFunctionChanged) {
 			lcdFunctionChanged = false;
-			handleLCDParameter(displayPointer);
+			Handle_LCDParameter(displayPointer);
 		}
 		
 		if (!displayPointerActivated && !parameterSelectionActivated) {
@@ -791,8 +791,8 @@ int main() {
 						displayPointer = PTR_SETT;
 						display.stateChanged = true;
 					}
-					updateAcStatus();
-					updateBatteryStatus();
+					Power_UpdateAcStatus();
+					Power_UpdateBatteryStatus();
 					if ((PowerStatus.battery_voltage != prevBatVoltage) || (PowerStatus.ac_power_PowerStatus != prevAcPowerStatus)) display.stateChanged = true;
 					prevBatVoltage = PowerStatus.battery_voltage;
 					prevAcPowerStatus = PowerStatus.ac_power_PowerStatus;
@@ -999,7 +999,7 @@ int main() {
 						display.stateChanged = true;
 						display.mainScreen = PARAMS_SCREEN;
 						EEPROM_SaveProfile();
-						beep();
+						Buzzer_Beep();
 					}
 					break;
 					
@@ -1021,7 +1021,7 @@ int main() {
 						display.stateChanged = true;
 						display.mainScreen = PARAMS_SCREEN;
 						EEPROM_LoadProfile();
-						beep();
+						Buzzer_Beep();
 					}
 					break;			
 				
@@ -1068,7 +1068,7 @@ int main() {
 						displayPointer = PTR_SETT;
 						display.stateChanged = true;
 					}
-					else if (switchState) shutdownSequence(false);
+					else if (switchState) Main_ShutdownDevice(false);
 					break;
 					
 				case PTR_BACK: 

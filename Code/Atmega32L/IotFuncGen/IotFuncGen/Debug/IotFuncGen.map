@@ -94,7 +94,7 @@ Discarded input sections
  .bss           0x00000000        0x0 main.o
  .text.Init_Timer
                 0x00000000       0x1a main.o
- .text.erase_EEPROM_1K
+ .text.EEPROM_Erase_1K
                 0x00000000       0x1e main.o
  .text          0x00000000        0x0 SPIMaster.o
  .data          0x00000000        0x0 SPIMaster.o
@@ -466,13 +466,13 @@ END GROUP
                 0x00000000                __vectors
  *(.vectors)
  *(.progmem.gcc*)
- .progmem.gcc_sw_table.handleFunctionGenerator
+ .progmem.gcc_sw_table.Handle_FunctionGenerator
                 0x00000054       0x10 main.o
- .progmem.gcc_sw_table.handleLCD
+ .progmem.gcc_sw_table.Handle_LCD
                 0x00000064       0x30 main.o
  .progmem.gcc_sw_table.main
                 0x00000094       0x30 main.o
- .progmem.gcc_sw_table.SPI_write_16bit
+ .progmem.gcc_sw_table.SPI_Write16Bit
                 0x000000c4       0x1c SPIMaster.o
                 0x000000e0                . = ALIGN (0x2)
                 0x000000e0                __trampolines_start = .
@@ -549,44 +549,45 @@ END GROUP
                 0x0000011a                __vector_20
                 0x0000011e                . = ALIGN (0x2)
  *(.text.*)
- .text.Init_LCD
+ .text.LCD_Init
                 0x0000011e        0xe LCD.o
-                0x0000011e                Init_LCD
- .text.lcd_write_4
+                0x0000011e                LCD_Init
+ .text.LCD_Write4Bit
                 0x0000012c       0x30 LCD.o
-                0x0000012c                lcd_write_4
- .text.lcd_write_character_4d
+                0x0000012c                LCD_Write4Bit
+ .text.LCD_WriteCharacter4Bit
                 0x0000015c       0x1a LCD.o
-                0x0000015c                lcd_write_character_4d
- .text.lcd_write_string_4d
+                0x0000015c                LCD_WriteCharacter4Bit
+ .text.LCD_WriteString4Bit
                 0x00000176       0x62 LCD.o
-                0x00000176                lcd_write_string_4d
- .text.lcd_write_instruction_4d
+                0x00000176                LCD_WriteString4Bit
+ .text.LCD_WriteInstruction4Bit
                 0x000001d8       0x1a LCD.o
-                0x000001d8                lcd_write_instruction_4d
- .text.Init_LCD_4bit
+                0x000001d8                LCD_WriteInstruction4Bit
+ .text.LCD_Init4bit
                 0x000001f2       0x9c LCD.o
-                0x000001f2                Init_LCD_4bit
- .text.print_LCD_line
+                0x000001f2                LCD_Init4bit
+ .text.LCD_PrintLine
                 0x0000028e       0x1a LCD.o
-                0x0000028e                print_LCD_line
- .text.clear_LCD_line
+                0x0000028e                LCD_PrintLine
+ .text.LCD_ClearLine
                 0x000002a8        0xc LCD.o
-                0x000002a8                clear_LCD_line
- .text.clear_LCD
+                0x000002a8                LCD_ClearLine
+ .text.LCD_Clear
                 0x000002b4       0x1a LCD.o
-                0x000002b4                clear_LCD
- .text.print_LCD_char
+                0x000002b4                LCD_Clear
+ .text.LCD_PrintChar
                 0x000002ce       0x18 LCD.o
-                0x000002ce                print_LCD_char
- .text.beep     0x000002e6       0x24 main.o
-                0x000002e6                beep
- .text.playMelody
+                0x000002ce                LCD_PrintChar
+ .text.Buzzer_Beep
+                0x000002e6       0x24 main.o
+                0x000002e6                Buzzer_Beep
+ .text.Buzzer_PlayMelody
                 0x0000030a       0xdc main.o
-                0x0000030a                playMelody
- .text.shutdownSequence
+                0x0000030a                Buzzer_PlayMelody
+ .text.Main_ShutdownDevice
                 0x000003e6       0x58 main.o
-                0x000003e6                shutdownSequence
+                0x000003e6                Main_ShutdownDevice
  .text.Init_Ports
                 0x0000043e       0x3c main.o
                 0x0000043e                Init_Ports
@@ -596,63 +597,63 @@ END GROUP
  .text.Init_Device
                 0x00000484       0x2e main.o
                 0x00000484                Init_Device
- .text.selectOutputType
+ .text.FG_SelectOutputType
                 0x000004b2       0x24 main.o
-                0x000004b2                selectOutputType
- .text.setFunction
+                0x000004b2                FG_SelectOutputType
+ .text.FG_SetFunction
                 0x000004d6       0xe8 main.o
-                0x000004d6                setFunction
- .text.setAmplitude
+                0x000004d6                FG_SetFunction
+ .text.FG_SetAmplitude
                 0x000005be       0x3a main.o
-                0x000005be                setAmplitude
- .text.pollSwitch
+                0x000005be                FG_SetAmplitude
+ .text.Main_PollSwitch
                 0x000005f8       0x10 main.o
-                0x000005f8                pollSwitch
- .text.pollEncoder
+                0x000005f8                Main_PollSwitch
+ .text.Main_PollEncoder
                 0x00000608      0x198 main.o
-                0x00000608                pollEncoder
- .text.setContrastLCD
+                0x00000608                Main_PollEncoder
+ .text.LCD_SetContrast
                 0x000007a0       0x1c main.o
-                0x000007a0                setContrastLCD
- .text.setBrightnessLCD
+                0x000007a0                LCD_SetContrast
+ .text.LCD_SetBrightness
                 0x000007bc       0x48 main.o
-                0x000007bc                setBrightnessLCD
- .text.brightnessAnimation
+                0x000007bc                LCD_SetBrightness
+ .text.LCD_BrightnessAnimation
                 0x00000804       0x20 main.o
-                0x00000804                brightnessAnimation
- .text.setBiasDC
+                0x00000804                LCD_BrightnessAnimation
+ .text.FG_SetBiasDC
                 0x00000824       0x5a main.o
-                0x00000824                setBiasDC
- .text.updateBatteryStatus
+                0x00000824                FG_SetBiasDC
+ .text.Power_UpdateBatteryStatus
                 0x0000087e       0x42 main.o
-                0x0000087e                updateBatteryStatus
- .text.updateAcStatus
+                0x0000087e                Power_UpdateBatteryStatus
+ .text.Power_UpdateAcStatus
                 0x000008c0       0x58 main.o
-                0x000008c0                updateAcStatus
- .text.clearWaveformValues
+                0x000008c0                Power_UpdateAcStatus
+ .text.Init_ClearWaveformValues
                 0x00000918       0x30 main.o
-                0x00000918                clearWaveformValues
- .text.clearUIValues
+                0x00000918                Init_ClearWaveformValues
+ .text.Init_ClearUIValues
                 0x00000948       0x9e main.o
-                0x00000948                clearUIValues
- .text.clearLCDParameterValues
+                0x00000948                Init_ClearUIValues
+ .text.Init_ClearLCDParameterValues
                 0x000009e6        0xc main.o
-                0x000009e6                clearLCDParameterValues
- .text.handleFunctionGenerator
+                0x000009e6                Init_ClearLCDParameterValues
+ .text.Handle_FunctionGenerator
                 0x000009f2      0x176 main.o
-                0x000009f2                handleFunctionGenerator
- .text.handleLCDParameter
+                0x000009f2                Handle_FunctionGenerator
+ .text.Handle_LCDParameter
                 0x00000b68       0x1e main.o
-                0x00000b68                handleLCDParameter
- .text.uintToString
+                0x00000b68                Handle_LCDParameter
+ .text.Main_UintToString
                 0x00000b86       0x58 main.o
-                0x00000b86                uintToString
- .text.handleLCD
+                0x00000b86                Main_UintToString
+ .text.Handle_LCD
                 0x00000bde      0x7aa main.o
-                0x00000bde                handleLCD
- .text.LCD_logo_display
+                0x00000bde                Handle_LCD
+ .text.LCD_LogoDisplay
                 0x00001388       0x8a main.o
-                0x00001388                LCD_logo_display
+                0x00001388                LCD_LogoDisplay
  .text.Init_UI  0x00001412       0x28 main.o
                 0x00001412                Init_UI
  .text.EEPROM_SaveProfile
@@ -663,15 +664,15 @@ END GROUP
                 0x0000151c                EEPROM_LoadProfile
  .text.main     0x0000161a      0xe3c main.o
                 0x0000161a                main
- .text.SPI_write_16bit
+ .text.SPI_Write16Bit
                 0x00002456       0x86 SPIMaster.o
-                0x00002456                SPI_write_16bit
- .text.Init_SPI_AD9834
+                0x00002456                SPI_Write16Bit
+ .text.SPI_InitAD9834
                 0x000024dc       0x1e SPIMaster.o
-                0x000024dc                Init_SPI_AD9834
- .text.Init_SPI_All
+                0x000024dc                SPI_InitAD9834
+ .text.SPI_InitAll
                 0x000024fa       0x1e SPIMaster.o
-                0x000024fa                Init_SPI_All
+                0x000024fa                SPI_InitAll
  .text.Init_UART
                 0x00002518       0x10 USART.o
                 0x00002518                Init_UART
@@ -965,35 +966,35 @@ END GROUP
 .debug_pubnames
  *(.debug_pubnames)
 
-.debug_info     0x00000000     0x451c
+.debug_info     0x00000000     0x44fa
  *(.debug_info .gnu.linkonce.wi.*)
  .debug_info    0x00000000      0x4e6 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5/crtatmega32.o
- .debug_info    0x000004e6      0xa3e LCD.o
- .debug_info    0x00000f24     0x2811 main.o
- .debug_info    0x00003735      0x585 SPIMaster.o
- .debug_info    0x00003cba      0x3b9 USART.o
- .debug_info    0x00004073       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_byte.o)
- .debug_info    0x0000411d       0xab C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_dword.o)
- .debug_info    0x000041c8       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_word.o)
- .debug_info    0x00004272       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_byte.o)
- .debug_info    0x0000431c       0xab C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_dword.o)
- .debug_info    0x000043c7       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_word.o)
- .debug_info    0x00004471       0xab C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_block.o)
+ .debug_info    0x000004e6      0xa36 LCD.o
+ .debug_info    0x00000f1c     0x2807 main.o
+ .debug_info    0x00003723      0x57d SPIMaster.o
+ .debug_info    0x00003ca0      0x3b1 USART.o
+ .debug_info    0x00004051       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_byte.o)
+ .debug_info    0x000040fb       0xab C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_dword.o)
+ .debug_info    0x000041a6       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_word.o)
+ .debug_info    0x00004250       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_byte.o)
+ .debug_info    0x000042fa       0xab C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_dword.o)
+ .debug_info    0x000043a5       0xaa C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_word.o)
+ .debug_info    0x0000444f       0xab C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_block.o)
 
-.debug_abbrev   0x00000000      0xe68
+.debug_abbrev   0x00000000      0xe59
  *(.debug_abbrev)
  .debug_abbrev  0x00000000      0x4a3 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5/crtatmega32.o
  .debug_abbrev  0x000004a3      0x211 LCD.o
- .debug_abbrev  0x000006b4      0x441 main.o
- .debug_abbrev  0x00000af5      0x1a9 SPIMaster.o
- .debug_abbrev  0x00000c9e      0x13e USART.o
- .debug_abbrev  0x00000ddc       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_byte.o)
- .debug_abbrev  0x00000df0       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_dword.o)
- .debug_abbrev  0x00000e04       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_word.o)
- .debug_abbrev  0x00000e18       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_byte.o)
- .debug_abbrev  0x00000e2c       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_dword.o)
- .debug_abbrev  0x00000e40       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_word.o)
- .debug_abbrev  0x00000e54       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_block.o)
+ .debug_abbrev  0x000006b4      0x432 main.o
+ .debug_abbrev  0x00000ae6      0x1a9 SPIMaster.o
+ .debug_abbrev  0x00000c8f      0x13e USART.o
+ .debug_abbrev  0x00000dcd       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_byte.o)
+ .debug_abbrev  0x00000de1       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_dword.o)
+ .debug_abbrev  0x00000df5       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_word.o)
+ .debug_abbrev  0x00000e09       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_byte.o)
+ .debug_abbrev  0x00000e1d       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_dword.o)
+ .debug_abbrev  0x00000e31       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eewr_word.o)
+ .debug_abbrev  0x00000e45       0x14 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5\libatmega32.a(eerd_block.o)
 
 .debug_line     0x00000000     0x2b3d
  *(.debug_line .debug_line.* .debug_line_end)
@@ -1017,17 +1018,17 @@ END GROUP
  .debug_frame   0x000003cc       0x50 SPIMaster.o
  .debug_frame   0x0000041c       0x50 USART.o
 
-.debug_str      0x00000000      0xc1d
+.debug_str      0x00000000      0xc4f
  *(.debug_str)
  .debug_str     0x00000000      0x196 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.2.209/gcc/dev/atmega32/avr5/crtatmega32.o
- .debug_str     0x00000196      0x40e LCD.o
-                                0x494 (size before relaxing)
- .debug_str     0x000005a4      0x62c main.o
-                                0xa3f (size before relaxing)
- .debug_str     0x00000bd0       0x24 SPIMaster.o
-                                0x41a (size before relaxing)
- .debug_str     0x00000bf4       0x29 USART.o
-                                0x377 (size before relaxing)
+ .debug_str     0x00000196      0x3ec LCD.o
+                                0x46d (size before relaxing)
+ .debug_str     0x00000582      0x680 main.o
+                                0xa63 (size before relaxing)
+ .debug_str     0x00000c02       0x24 SPIMaster.o
+                                0x3f2 (size before relaxing)
+ .debug_str     0x00000c26       0x29 USART.o
+                                0x352 (size before relaxing)
 
 .debug_loc      0x00000000     0x21c9
  *(.debug_loc)
