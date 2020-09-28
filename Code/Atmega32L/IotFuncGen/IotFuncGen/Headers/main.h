@@ -15,7 +15,7 @@
 
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
-// #define PRE_PROG
+//#define PRE_PROG
 
 #define POSITIVE false
 #define NEGATIVE true
@@ -27,17 +27,14 @@
 #define MAX_8BIT 255
 #define MAX_10BIT 1023
 #define MAX_12BIT 4095
-#define MAX_AMPLITUDE 1.00
 #define DAC_REF_RATIO 3405
 #define DAC_DC_RATIO  40.95
 #define AD9834_FREQ_FACTOR 10.737418
 #define AD9834_CLOCK_FREQUENCY 25000000UL
-#define VBAT_DIVIDER_RATIO 0.589
+#define VBAT_DIVIDER_RATIO 1.696
 #define EEPROM_ADRESS_SPAN 128
 #define LCD_LINE_LENGTH 20
-#define BATTERY_ADC_FACTOR_A 0.977
-#define BATTERY_ADC_FACTOR_B 5.602
-#define POWER_ADC_THRESHOLD 500
+#define POWER_ADC_THRESHOLD 420
 #define BATTERY_CMD_LENGTH 10
 #define POWER_CMD_LENGTH 8
 #define DELAY_COMMAND_MS 1000
@@ -57,13 +54,10 @@
 #define POT_LCD_NCE		(1 << PINA4)
 
 #define PIN_ENCODER PINB
-#define ENCODER_A_PORT PORTB
-#define ENCODER_B_PORT PORTB
-#define ENCODER_A_DDR DDRB
-#define ENCODER_B_DDR DDRB
-
-#define ENCODER_A (1 << PINB2)
-#define ENCODER_B (1 << PINB3)
+#define ENCODER_PORT PORTB
+#define ENCODER_DDR DDRB
+#define ENCODER_B (1 << PINB2)
+#define ENCODER_A (1 << PINB3)
 
 /* LCD Definitions */
 #define LCD_CONTROL_DDR		DDRB
@@ -134,31 +128,34 @@ do                          \
 } while(0)
 
 /* LCD Displays */ 
-#define LCD_MAIN_STRING_1			  " Channel:X, Type:XXX"
-#define LCD_MAIN_STRING_2			  " Amplitude: X.XX[V] "
-#define LCD_MAIN_STRING_3			  " Freq: X.XXX.XXX[Hz]"
-#define LCD_MAIN_STRING_4			  " Bias: XX.XX[V]     "
+#define LCD_MAIN_STRINGA_1			  " Channel:A, Type:OFF"
+#define LCD_MAIN_STRINGB_1			  " Channel:B, Type:OFF"
+#define LCD_MAIN_STRING_2			  " Amplitude: 0.00[V] "
+#define LCD_MAIN_STRING_3			  " Freq: 0.000.000[Hz]"
+#define LCD_MAIN_STRING_4			  " Bias: +0.00[V]     "
 
-#define LCD_MAIN_SETTINGS_STRING_1	  "Voltage(Bat):X.XX[V]"
-#define LCD_MAIN_SETTINGS_STRING_2	  "External Power: XXX "
+#define LCD_MAIN_SETTINGS_STRING_1	  "  V(Battery):X.XX[V]"
+#define LCD_MAIN_SETTINGS_STRING_2	  "  USB Charging: XXX "
 #define LCD_MAIN_SETTINGS_STRING_3    "  Settings          "
 #define LCD_MAIN_SETTINGS_STRING_4	  "  Shutdown          "
 
-#define LCD_PROFILE_SETTINGS_STRING_1 "<<Profile Settings>>"
-#define LCD_PROFILE_SETTINGS_STRING_2 "  Save Profile	   "
-#define LCD_PROFILE_SETTINGS_STRING_3 "  Load Profile	   "
+#define LCD_PROFILE_SETTINGS_STRING_1 " <Profile Settings> "
+#define LCD_PROFILE_SETTINGS_STRING_2 "  Save Profile      "
+#define LCD_PROFILE_SETTINGS_STRING_3 "  Load Profile      "
 #define LCD_PROFILE_SETTINGS_STRING_4 "       <BACK>       "
 
 #define LCD_SCREEN_SETTINGS_STRING_1  "  <<LCD Settings>>  "
-#define LCD_SCREEN_SETTINGS_STRING_2  "  Brightness:XXX[%] "
-#define LCD_SCREEN_SETTINGS_STRING_3  "  Contrast:  XXX[%] "
-#define LCD_SCREEN_SETTINGS_STRING_4  "       <BACK>       "
+#define LCD_SCREEN_SETTINGS_STRING_2  "  Brightness:100[%] "
+#define LCD_SCREEN_SETTINGS_STRING_3  "  Contrast:  100[%] "
+#define LCD_SCREEN_SETTINGS_STRING_4  "                    "
 
 #define LCD_SHUTDOWN_STRING_1		  "  Perform Reset     "
 #define LCD_SHUTDOWN_STRING_2		  "  Power Off         "
 #define LCD_SHUTDOWN_STRING_3		  "  Factory Settings  "
 #define LCD_SHUTDOWN_STRING_4		  "       <BACK>       "
 
+bool g_bSPITransferCompleted;
+typedef enum { PRIMARY_SCREENS,  MENU_POINTER_ON, PARAMETER_POINTER_ON, PARAMETER_LCD_POINTER_ON} MainDeviceState;
 typedef enum EncoderStates {NONE, CW, CCW} EncoderState;
 typedef enum MainScreens { MAIN_SCREEN_A, MAIN_SCREEN_B, PARAMS_SCREEN, SETTINGS_SCREEN, PROFILE_SCREEN, LCD_SCREEN, SHUTDOWN_SCREEN } MainScreen;
 typedef enum DisplayPointers { PTR_NULL, PTR_BACK,
@@ -179,16 +176,16 @@ struct {
 	uint8_t encoderSeqCntCCW;
 } Encoder;
 
-struct {
+typedef struct {
 	uint32_t frequency_A, frequency_B;
 	uint16_t amplitude_A, amplitude_B;
 	enum WaveformType output_type_A, output_type_B;
-	uint16_t bias_A, bias_B;
+	int16_t bias_A, bias_B;
 	bool bias_A_sign, bias_B_sign;
-} FunctionGenerator;
+} FGX;
 
 struct {
-	uint8_t battery_voltage;
+	uint16_t battery_voltage;
 	bool   ac_power_PowerStatus;
 } PowerStatus;
 
@@ -248,8 +245,7 @@ void EEPROM_LoadProfile();
 void Power_UpdateBatteryStatus();
 void Power_UpdateAcStatus();
 
-void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive);
-void Handle_FunctionGenerator(DisplayPointer displayPointer);
+void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, MainDeviceState mainDeviceState, FGX FunctionGenerator);
 void Handle_LCDParameter(DisplayPointer displayPointer);
 
 #endif /* MAIN_H_ */

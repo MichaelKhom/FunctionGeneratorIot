@@ -19,4 +19,3 @@ void Logger(char *str) {
 		++str;
 	}
 }
-

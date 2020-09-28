@@ -1,5 +1,6 @@
 #include "Headers\main.h"
 #include "Headers\SPIMaster.h"
+#include "Headers\USART.h"
 
 void SPI_Write16Bit(uint8_t address_in, uint8_t data_in, enum Device device) {
 	switch(device) {
@@ -31,7 +32,6 @@ void SPI_Write16Bit(uint8_t address_in, uint8_t data_in, enum Device device) {
 	}
 }
 
-
 void SPI_InitAD9834(void) {
 	SPI_CE_PORT |= DACA_NCE | DACB_NCE | DACA_BIAS_NCE | DACB_BIAS_NCE | FG0_NCE | FG1_NCE;
 	LCD_POT_PORT |= POT_LCD_NCE;
@@ -43,7 +43,7 @@ void SPI_InitAD9834(void) {
 void SPI_InitAll(void) {
 	SPI_CE_PORT |= DACA_NCE | DACB_NCE | DACA_BIAS_NCE | DACB_BIAS_NCE | FG0_NCE | FG1_NCE;
 	LCD_POT_PORT |= POT_LCD_NCE;
-	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0);
+	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0)|(1<<CPOL);
 	SPSR = (1<<SPI2X);
 	_delay_ms(10);
 }

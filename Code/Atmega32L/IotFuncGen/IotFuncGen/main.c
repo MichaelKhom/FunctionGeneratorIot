@@ -10,8 +10,9 @@
 #include "Headers\LCD.h"
 #include "Headers\Version.h"
 
+ 
 void Buzzer_Beep() { // d - f - a
-		for (uint8_t ptrm = 0; ptrm < 30; ptrm++) {
+		for (uint8_t ptrm = 0; ptrm < 20; ptrm++) {
 			MISC_PORT |= BUZZER;
 			_delay_us(426);
 			MISC_PORT &= ~BUZZER;
@@ -33,7 +34,7 @@ void Buzzer_PlayMelody(bool power_on) {
 			MISC_PORT &= ~BUZZER;
 			_delay_us(338);
 		}
-		for (uint16_t ptrm = 0; ptrm < 352; ptrm++) {
+		for (uint16_t ptrm = 0; ptrm < 652; ptrm++) {
 			MISC_PORT |= BUZZER;
 			_delay_us(284);
 			MISC_PORT &= ~BUZZER;
@@ -84,10 +85,8 @@ void Init_Timer() {
 }
 
 void Init_Ports() {
-	ENCODER_A_DDR &= ~ENCODER_A;
-	ENCODER_B_DDR &= ~ENCODER_B;
-	ENCODER_A_PORT |= ENCODER_A;
-	ENCODER_B_PORT |= ENCODER_B;
+	ENCODER_DDR &= ~ENCODER_A & ~ENCODER_B;
+	ENCODER_PORT |= ENCODER_A | ENCODER_B | (1 << 4);
 	SPI_CE_DDR |= DACA_NCE | DACB_NCE | DACA_BIAS_NCE | DACB_BIAS_NCE | FG0_NCE | FG1_NCE;
 	LCD_POT_DDR |= POT_LCD_NCE;
 	LCD_CONTROL_DDR |= LCD_RS | LCD_E;
@@ -103,12 +102,12 @@ void Init_Ports() {
 
 void Init_Device() {
 	Init_Ports();
+	Init_UART();
 	ENABLE_DEVICE();
 	SPI_InitAll();
 	LCD_Init();
 	_delay_ms(DELAY_COMMAND_MS);
 	LCD_Init4bit();
-	Init_UART();
 	Init_ADC();
 }
 
@@ -119,10 +118,10 @@ void Init_ADC() {
 
 void Init_UI() {
 	LCD_BrightnessAnimation();
+	LCD_SetBrightness(100);
 	LCD_SetContrast(100);
 	LCD_LogoDisplay();
 	Buzzer_PlayMelody(true);
-	_delay_ms(2 * DELAY_COMMAND_MS);
 }
 
 void FG_SelectOutputType(enum Device device, enum WaveformType waveformType) {
@@ -139,7 +138,6 @@ void FG_SelectOutputType(enum Device device, enum WaveformType waveformType) {
 }
 
 void FG_SetFunction(enum Device device, uint32_t waveFrequency, enum WaveformType mode) {
-	SPI_InitAD9834();
 	waveFrequency *= AD9834_FREQ_FACTOR;
 	uint16_t freq_reg_lsb = waveFrequency & 0x0003FFF;
 	uint16_t freq_reg_msb = ((waveFrequency >> 14) & 0x0003FFF);
@@ -147,7 +145,7 @@ void FG_SetFunction(enum Device device, uint32_t waveFrequency, enum WaveformTyp
 	uint8_t freq_reg_lsb_b = (freq_reg_lsb & 0xFF);
 	uint8_t freq_reg_msb_a = ((freq_reg_msb >> 8) & 0x3F);
 	uint8_t freq_reg_msb_b = (freq_reg_msb & 0xFF);
-		
+	SPI_InitAD9834();
 	SPI_Write16Bit(AD9834_CONSECUTIVE_WRITE,0x00,device);
 	SPI_Write16Bit(AD9834_FREQUENCY_REGISTER_ADDR |freq_reg_lsb_a, freq_reg_lsb_b, device);
 	SPI_Write16Bit(AD9834_FREQUENCY_REGISTER_ADDR |freq_reg_msb_a, freq_reg_msb_b, device);
@@ -157,9 +155,9 @@ void FG_SetFunction(enum Device device, uint32_t waveFrequency, enum WaveformTyp
 		case TRIANGLE: SPI_Write16Bit(AD9834_EXIT_RESET, MODE, device); break;
 		case SQUARE: SPI_Write16Bit(AD9834_EXIT_RESET, OPBITEN | DIV2, device); break;
 		default: SPI_Write16Bit(AD9834_EXIT_RESET, SLEEP1, device); break;
-		}
-		FG_SelectOutputType(device, mode);
+	}
 	SPI_InitAll();
+	FG_SelectOutputType(device, mode);	
 }
 
 int FG_SetAmplitude(uint16_t valueIn, enum Device device) {
@@ -175,6 +173,7 @@ int FG_SetAmplitude(uint16_t valueIn, enum Device device) {
 bool Main_PollSwitch() {
 	if (!(PB_PIN & S_INT)) {
 		while(!(PB_PIN & S_INT));
+		Buzzer_Beep();
 		return true; 
 	}
 	else return false; 	
@@ -182,18 +181,19 @@ bool Main_PollSwitch() {
 
 EncoderState Main_PollEncoder() {
 	EncoderState state = NONE;
-	volatile bool currentB = PIN_ENCODER & (1 << ENCODER_B);
-	volatile bool currentA = PIN_ENCODER & (1 << ENCODER_A);
+	volatile bool currentB = PIN_ENCODER & ENCODER_B;
+	volatile bool currentA = PIN_ENCODER & ENCODER_A;
 	/* State change */
 	if ((Encoder.previousA && Encoder.previousB) && (!currentA && currentB)) Encoder.encoderSeqCntCW++;
 	else if ((!Encoder.previousA && Encoder.previousB) && (!currentA && !currentB)) Encoder.encoderSeqCntCW++;
 	else if ((!Encoder.previousA && !Encoder.previousB) && (currentA && !currentB)) Encoder.encoderSeqCntCW++;
-	else if ((Encoder.previousA && !Encoder.previousB) && (currentA && currentB)) Encoder.encoderSeqCntCW++;
+	else if ((Encoder.previousA && !Encoder.previousB) && (currentA && currentB))Encoder.encoderSeqCntCW++;
 	
 	else if ((Encoder.previousA && Encoder.previousB) && (currentA && !currentB)) Encoder.encoderSeqCntCCW++;
 	else if ((Encoder.previousA && !Encoder.previousB) && (!currentA && !currentB)) Encoder.encoderSeqCntCCW++;
 	else if ((!Encoder.previousA && !Encoder.previousB) && (!currentA && currentB)) Encoder.encoderSeqCntCCW++;
 	else if ((!Encoder.previousA && Encoder.previousB) && (currentA && currentB)) Encoder.encoderSeqCntCCW++;
+	_delay_ms(1);
 	
 	if (Encoder.encoderSeqCntCW == 4) {
 		Encoder.encoderSeqCntCW = 0;
@@ -207,7 +207,7 @@ EncoderState Main_PollEncoder() {
 	
 	Encoder.previousA = currentA;
 	Encoder.previousB = currentB;
-	_delay_us(100);
+	
 	return state;
 }
 
@@ -259,23 +259,19 @@ void Power_UpdateBatteryStatus() {
 	ADMUX = 0;
 	ADCSRA |= (1 << ADSC);
 	while(ADCSRA & (1 << ADSC));
-	PowerStatus.battery_voltage = ADC * BATTERY_ADC_FACTOR_A * BATTERY_ADC_FACTOR_B / 10;
+	PowerStatus.battery_voltage = ADC * 0.547;
 }
 
 void Power_UpdateAcStatus() {
-	volatile uint16_t adcx = 0;
 	ADMUX |= 1;
 	ADCSRA |= (1 << ADSC);
 	while(ADCSRA & (1 << ADSC));
-	adcx = ADC;
-	ADCSRA |= (1 << ADSC);
-	while(ADCSRA & (1 << ADSC));
-	adcx = (adcx + ADC) / 2; // Double sum average
-	if (adcx < POWER_ADC_THRESHOLD) PowerStatus.ac_power_PowerStatus = false;
-	else PowerStatus.ac_power_PowerStatus = true;
+	uint16_t adc = ADC;
+	if (adc > POWER_ADC_THRESHOLD) PowerStatus.ac_power_PowerStatus = true;
+	else PowerStatus.ac_power_PowerStatus = false;
 }
 
-void Init_ClearWaveformValues() {
+void Init_ClearWaveformValues(FGX FunctionGenerator) {
 	FunctionGenerator.frequency_A = 0; 
 	FunctionGenerator.frequency_B = 0;
 	FunctionGenerator.amplitude_A = 0; 
@@ -289,19 +285,23 @@ void Init_ClearWaveformValues() {
 }
 
 void Init_ClearUIValues() {
-	memset(UI.frequency_A, 0, 7);
-	memset(UI.frequency_B, 0, 7);
-	memset(UI.amplitude_A, 0, 2);
-	memset(UI.amplitude_B, 0, 2);
-	memset(UI.type_A, 0, 3);
-	memset(UI.type_B, 0, 3);
-	memset(UI.bias_A, 0, 3);
-	memset(UI.bias_B, 0, 3);
-	UI.bias_A_sign = ' ';
-	UI.bias_B_sign = ' ';
-	memset(UI.lcd_contrast, 0, 3);
-	memset(UI.lcd_brightness, 0, 3);
-	memset(UI.batteryPowerStatus, 0, 3);
+	memset(UI.frequency_A, '0', 7);
+	memset(UI.frequency_B, '0', 7);
+	memset(UI.amplitude_A, '0', 2);
+	memset(UI.amplitude_B, '0', 2);
+	
+	memcpy(UI.type_A, "OFF", 3);
+	memcpy(UI.type_B, "OFF", 3);
+	
+	memset(UI.bias_A, '0', 3);
+	memset(UI.bias_B, '0', 3);
+	
+	UI.bias_A_sign = '+';
+	UI.bias_B_sign = '+';
+	
+	memcpy(UI.lcd_contrast, "100", 3);
+	memcpy(UI.lcd_brightness, "100", 3);
+	memcpy(UI.batteryPowerStatus, "000", 3);
 }
 
 void Init_ClearLCDParameterValues() {
@@ -309,9 +309,13 @@ void Init_ClearLCDParameterValues() {
 	LCD.contrast = 100;
 }
 
-void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerActive, bool paramActive, bool lcdParamActive) {
+void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, MainDeviceState mainDeviceState, FGX FunctionGenerator) {
 	
-	if (pointerActive) {
+	static bool staticLCDLoaded = false;
+	
+	if (screen != PARAMS_SCREEN) staticLCDLoaded = false;
+	
+	if (mainDeviceState == MENU_POINTER_ON) {
 		switch(displayPointer) {
 			case PTR_NULL:
 			LCD_PrintChar(' ', LCD_LINE_1, 0);
@@ -350,7 +354,7 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 		}
 	}
 	
-	else if (paramActive) {
+	else if (mainDeviceState == PARAMETER_POINTER_ON) {
 		switch(displayPointer) {
 			case PTR_TYPE_A:
 			switch(FunctionGenerator.output_type_A) {
@@ -383,7 +387,11 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 				UI.type_A[1] = 'F';
 				UI.type_A[2] = 'F';
 				break;
-		}
+			}
+			LCD_PrintChar(UI.type_A[0], LCD_LINE_1, 17);
+			LCD_PrintChar(UI.type_A[1], LCD_LINE_1, 18);
+			LCD_PrintChar(UI.type_A[2], LCD_LINE_1, 19);
+			break;
 		
 			case PTR_TYPE_B:
 			switch(FunctionGenerator.output_type_B) {
@@ -460,7 +468,7 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 			case PTR_BIAS_A: 
 			if (FunctionGenerator.bias_A_sign == POSITIVE) UI.bias_A_sign = '+';
 			else UI.bias_A_sign = '-';
-			Main_UintToString(FunctionGenerator.bias_A, &UI.bias_A[0], 3);
+			Main_UintToString(abs(FunctionGenerator.bias_A), &UI.bias_A[0], 3);
 			LCD_PrintChar(UI.bias_A_sign, LCD_LINE_4, 7);
 			LCD_PrintChar(UI.bias_A[0], LCD_LINE_4, 8);
 			LCD_PrintChar(UI.bias_A[1], LCD_LINE_4, 10);
@@ -470,28 +478,29 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 			case PTR_BIAS_B:
 			if (FunctionGenerator.bias_B_sign == POSITIVE) UI.bias_B_sign = '+';
 			else UI.bias_B_sign = '-';
-			Main_UintToString(FunctionGenerator.bias_A, &UI.bias_B[0], 3);
+			Main_UintToString(abs(FunctionGenerator.bias_B), &UI.bias_B[0], 3);
 			LCD_PrintChar(UI.bias_B_sign, LCD_LINE_4, 7);
 			LCD_PrintChar(UI.bias_B[0], LCD_LINE_4, 8);
 			LCD_PrintChar(UI.bias_B[1], LCD_LINE_4, 10);
 			LCD_PrintChar(UI.bias_B[2], LCD_LINE_4, 11);
 			break;
+			
 			default: break;			
 			
 		}
 	}
-	
-	else if (lcdParamActive) {
+				
+	else if (mainDeviceState == PARAMETER_LCD_POINTER_ON) {
 		switch(displayPointer) {
 			case PTR_BRIGHT:			
-			Main_UintToString(LCD.brightness, UI.lcd_brightness, 3);
+			Main_UintToString(LCD.brightness, &UI.lcd_brightness[0], 3);
 			LCD_PrintChar(UI.lcd_brightness[0], LCD_LINE_2, 13);
 			LCD_PrintChar(UI.lcd_brightness[1], LCD_LINE_2, 14);
 			LCD_PrintChar(UI.lcd_brightness[2], LCD_LINE_2, 15);
 			break;
 
 			case PTR_CONTR:
-			Main_UintToString(LCD.contrast, UI.lcd_contrast, 3);
+			Main_UintToString(LCD.contrast, &UI.lcd_contrast[0], 3);
 			LCD_PrintChar(UI.lcd_contrast[0], LCD_LINE_3, 13);
 			LCD_PrintChar(UI.lcd_contrast[1], LCD_LINE_3, 14);
 			LCD_PrintChar(UI.lcd_contrast[2], LCD_LINE_3, 15);
@@ -504,7 +513,7 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 	else {
 		switch(screen) {
 			case MAIN_SCREEN_A:
-			LCD_PrintLine(LCD_MAIN_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_MAIN_STRINGA_1, LCD_LINE_1);
 			LCD_PrintLine(LCD_MAIN_STRING_2, LCD_LINE_2);
 			LCD_PrintLine(LCD_MAIN_STRING_3, LCD_LINE_3);
 			LCD_PrintLine(LCD_MAIN_STRING_4, LCD_LINE_4);
@@ -531,7 +540,7 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 			break;
 			
 			case MAIN_SCREEN_B:
-			LCD_PrintLine(LCD_MAIN_STRING_1, LCD_LINE_1);
+			LCD_PrintLine(LCD_MAIN_STRINGB_1, LCD_LINE_1);
 			LCD_PrintLine(LCD_MAIN_STRING_2, LCD_LINE_2);
 			LCD_PrintLine(LCD_MAIN_STRING_3, LCD_LINE_3);
 			LCD_PrintLine(LCD_MAIN_STRING_4, LCD_LINE_4);
@@ -558,12 +567,15 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 			break;
 			
 			case PARAMS_SCREEN:
-			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_1, LCD_LINE_1);
-			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_2, LCD_LINE_2);
-			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_3, LCD_LINE_3);
-			LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_4, LCD_LINE_4);
+			if (!staticLCDLoaded) {
+				staticLCDLoaded = true;
+				LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_1, LCD_LINE_1);
+				LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_2, LCD_LINE_2);
+				LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_3, LCD_LINE_3);
+				LCD_PrintLine(LCD_MAIN_SETTINGS_STRING_4, LCD_LINE_4);
+			}
 			
-			Main_UintToString(PowerStatus.battery_voltage, UI.batteryPowerStatus, 3);
+			Main_UintToString(PowerStatus.battery_voltage, &UI.batteryPowerStatus[0], 3);
 			LCD_PrintChar(UI.batteryPowerStatus[0], LCD_LINE_1, 13);
 			LCD_PrintChar(UI.batteryPowerStatus[1], LCD_LINE_1, 15);
 			LCD_PrintChar(UI.batteryPowerStatus[2], LCD_LINE_1, 16);
@@ -573,8 +585,7 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 				LCD_PrintChar('N', LCD_LINE_2, 17);
 				LCD_PrintChar(' ', LCD_LINE_2, 18);
 			}
-			
-			else {
+			else if (!PowerStatus.ac_power_PowerStatus) {
 				LCD_PrintChar('O', LCD_LINE_2, 16);
 				LCD_PrintChar('F', LCD_LINE_2, 17);
 				LCD_PrintChar('F', LCD_LINE_2, 18);
@@ -594,8 +605,8 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 			LCD_PrintLine(LCD_SCREEN_SETTINGS_STRING_3, LCD_LINE_3);
 			LCD_PrintLine(LCD_SCREEN_SETTINGS_STRING_4, LCD_LINE_4);
 			
-			Main_UintToString(LCD.brightness, UI.lcd_brightness, 3);
-			Main_UintToString(LCD.contrast, UI.lcd_contrast, 3);
+			Main_UintToString(LCD.brightness, &UI.lcd_brightness[0], 3);
+			Main_UintToString(LCD.contrast, &UI.lcd_contrast[0], 3);
 			
 			LCD_PrintChar(UI.lcd_brightness[0], LCD_LINE_2, 13);
 			LCD_PrintChar(UI.lcd_brightness[1], LCD_LINE_2, 14);
@@ -608,27 +619,6 @@ void Handle_LCD(MainScreen screen, DisplayPointer displayPointer, bool pointerAc
 			
 			default: break;
 		}					
-	}
-}
-
-void Handle_FunctionGenerator(DisplayPointer displayPointer) {
-	switch(displayPointer) {
-		case PTR_TYPE_A: case PTR_FREQ_A: FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A); break;
-		case PTR_TYPE_B: case PTR_FREQ_B: FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B); break;
-		case PTR_AMP_A: FG_SetAmplitude(FunctionGenerator.amplitude_A * MAX_12BIT / 70, FG0); break;
-		case PTR_AMP_B: FG_SetAmplitude(FunctionGenerator.amplitude_B * MAX_12BIT / 70, FG1); break;
-		case PTR_BIAS_A: 
-			if (FunctionGenerator.bias_A_sign == POSITIVE) FG_SetBiasDC(FG0, 0, NEGATIVE);
-			else FG_SetBiasDC(FG0, 0, POSITIVE);
-			FG_SetBiasDC(FG0, FunctionGenerator.bias_A * MAX_12BIT / 330, FunctionGenerator.bias_A_sign);
-			break;
-		case PTR_BIAS_B:
-			if (FunctionGenerator.bias_B_sign == POSITIVE) FG_SetBiasDC(FG1, 0, NEGATIVE);
-			else FG_SetBiasDC(FG1, 0, POSITIVE);
-			FG_SetBiasDC(FG0, FunctionGenerator.bias_B * MAX_12BIT / 330, FunctionGenerator.bias_B_sign);
-			break;
-			
-			default: break;
 	}
 }
 
@@ -651,42 +641,103 @@ void Main_UintToString(uint32_t number, char *string, uint8_t length) {
 
 void LCD_LogoDisplay() {
 	char lbuff[20];
-	LCD_PrintLine("Mobile Function Generator", LCD_LINE_1);
+	LCD_Clear();
+	LCD_PrintLine("<<Portable FuncGen>>", LCD_LINE_1);
 	snprintf(lbuff, 20, " Firmware V%c.%c.%c ", FIRMWARE_VERSION_MAJOR, FIRMWARE_VERSION_MINOR, FIRMWARE_VERSION_BUILD);
 	LCD_PrintLine(lbuff, LCD_LINE_2);
-	LCD_PrintLine("  KhomLabs Design   ", LCD_LINE_3);
 	LCD_PrintLine("  <Initializing...> ", LCD_LINE_4);
+	_delay_ms(500);
 }
 
-void EEPROM_SaveProfile() {
+void EEPROM_SaveProfile(FGX FunctionGenerator) {
 	eeprom_write_dword((uint32_t *)0x00, FunctionGenerator.frequency_A); eeprom_busy_wait();
 	eeprom_write_dword((uint32_t *)0x04, FunctionGenerator.frequency_B); eeprom_busy_wait();
 	eeprom_write_byte((uint8_t *)0x08, FunctionGenerator.amplitude_A); eeprom_busy_wait();
 	eeprom_write_byte((uint8_t *)0x09, FunctionGenerator.amplitude_B); eeprom_busy_wait();
-	eeprom_write_word((uint16_t *)0x0A, FunctionGenerator.bias_A); eeprom_busy_wait();
-	eeprom_write_word((uint16_t *)0x0C, FunctionGenerator.bias_B); eeprom_busy_wait();
-	eeprom_write_byte((uint8_t *)0x0E, FunctionGenerator.bias_A_sign); eeprom_busy_wait();
-	eeprom_write_byte((uint8_t *)0x0F, FunctionGenerator.bias_B_sign); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x0A, FunctionGenerator.bias_A_sign); eeprom_busy_wait();
+	eeprom_write_byte((uint8_t *)0x0B, FunctionGenerator.bias_B_sign); eeprom_busy_wait();
+	eeprom_write_word((uint16_t *)0x0C, abs(FunctionGenerator.bias_A)); eeprom_busy_wait();
+	eeprom_write_word((uint16_t *)0x0E, abs(FunctionGenerator.bias_B)); eeprom_busy_wait();
 	eeprom_write_byte((uint8_t *)0x10, FunctionGenerator.output_type_A); eeprom_busy_wait();
 	eeprom_write_byte((uint8_t *)0x11, FunctionGenerator.output_type_B); eeprom_busy_wait();
 	eeprom_write_byte((uint8_t *)0x12, LCD.brightness); eeprom_busy_wait();
 	eeprom_write_byte((uint8_t *)0x13, LCD.contrast); eeprom_busy_wait();
 }
 
-void EEPROM_LoadProfile() {
+void EEPROM_LoadProfile(FGX FunctionGenerator) {
 	FunctionGenerator.frequency_A = eeprom_read_dword((uint32_t *)0x00); eeprom_busy_wait();
 	FunctionGenerator.frequency_B = eeprom_read_dword((uint32_t *)0x04); eeprom_busy_wait();
 	FunctionGenerator.amplitude_A = eeprom_read_byte((uint8_t *)0x08); eeprom_busy_wait();
 	FunctionGenerator.amplitude_B = eeprom_read_byte((uint8_t *)0x09); eeprom_busy_wait();
-	FunctionGenerator.bias_A = eeprom_read_word((uint16_t *)0x0A); eeprom_busy_wait();
-	FunctionGenerator.bias_B = eeprom_read_word((uint16_t *)0x0C); eeprom_busy_wait();
-	FunctionGenerator.bias_A_sign = eeprom_read_byte((uint8_t *)0x0E); eeprom_busy_wait();
-	FunctionGenerator.bias_B_sign = eeprom_read_byte((uint8_t *)0x0F); eeprom_busy_wait();
+	FunctionGenerator.bias_A_sign = eeprom_read_byte((uint8_t *)0x0A); eeprom_busy_wait();
+	FunctionGenerator.bias_B_sign = eeprom_read_byte((uint8_t *)0x0B); eeprom_busy_wait();
+	
+	if (FunctionGenerator.bias_A_sign == POSITIVE) { FunctionGenerator.bias_A = eeprom_read_word((uint16_t *)0x0C); eeprom_busy_wait(); }
+	else FunctionGenerator.bias_A = -abs(eeprom_read_word((uint16_t *)0x0C)); eeprom_busy_wait();
+	
+	if (FunctionGenerator.bias_B_sign == POSITIVE) { FunctionGenerator.bias_B = eeprom_read_word((uint16_t *)0x0E); eeprom_busy_wait(); }
+	else FunctionGenerator.bias_A = -abs(eeprom_read_word((uint16_t *)0x0E)); eeprom_busy_wait();
+	
 	FunctionGenerator.output_type_A = eeprom_read_byte((uint8_t *)0x10); eeprom_busy_wait();
 	FunctionGenerator.output_type_B = eeprom_read_byte((uint8_t *)0x11); eeprom_busy_wait();
 	LCD.brightness = eeprom_read_byte((uint8_t *)0x12); eeprom_busy_wait();
 	LCD.contrast = eeprom_read_byte((uint8_t *)0x13); eeprom_busy_wait();
+	
+	Main_UintToString(LCD.brightness, &UI.lcd_brightness[0], 3);
+	Main_UintToString(LCD.contrast, &UI.lcd_contrast[0], 3);
+	Main_UintToString(abs(FunctionGenerator.bias_A), &UI.bias_A[0], 3);
+	Main_UintToString(abs(FunctionGenerator.bias_B), &UI.bias_B[0], 3);
+	Main_UintToString(FunctionGenerator.frequency_B, &UI.frequency_B[0], 7);
+	Main_UintToString(FunctionGenerator.frequency_A, &UI.frequency_A[0], 7);
+	Main_UintToString(FunctionGenerator.amplitude_B, &UI.amplitude_B[0], 2);
+	Main_UintToString(FunctionGenerator.amplitude_A, &UI.amplitude_A[0], 2);
+	if (FunctionGenerator.bias_B_sign == POSITIVE) UI.bias_B_sign = '+';
+	else UI.bias_B_sign = '-';
+	if (FunctionGenerator.bias_A_sign == POSITIVE) UI.bias_A_sign = '+';
+	else UI.bias_A_sign = '-';
+	switch(FunctionGenerator.output_type_B) {
+		case SINE:UI.type_B[0] = 'S'; UI.type_B[1] = 'I'; UI.type_B[2] = 'N'; break;
+		case TRIANGLE:UI.type_B[0] = 'T'; UI.type_B[1] = 'R'; UI.type_B[2] = 'N'; break;
+		case SQUARE: UI.type_B[0] = 'S'; UI.type_B[1] = 'Q'; UI.type_B[2] = 'R'; break;
+		case DC: UI.type_B[0] = ' '; UI.type_B[1] = 'D'; UI.type_B[2] = 'C'; break;
+		case OFF: UI.type_B[0] = 'O'; UI.type_B[1] = 'F'; UI.type_B[2] = 'F'; break;
+	}
+	switch(FunctionGenerator.output_type_A) {
+		case SINE:UI.type_A[0] = 'S'; UI.type_A[1] = 'I'; UI.type_A[2] = 'N'; break;
+		case TRIANGLE: UI.type_A[0] = 'T'; UI.type_A[1] = 'R'; UI.type_A[2] = 'N'; break;
+		case SQUARE: UI.type_A[0] = 'S'; UI.type_A[1] = 'Q'; UI.type_A[2] = 'R'; break;
+		case DC: UI.type_A[0] = ' '; UI.type_A[1] = 'D'; UI.type_A[2] = 'C'; break;
+		case OFF: UI.type_A[0] = 'O'; UI.type_A[1] = 'F'; UI.type_A[2] = 'F'; break;
+	}
+	
+	FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A);
+	FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B);
+	FG_SetAmplitude(FunctionGenerator.amplitude_A * 58.5, FG0);
+	FG_SetAmplitude(FunctionGenerator.amplitude_B * 58.5, FG1);
+	
+	if (FunctionGenerator.bias_A_sign == POSITIVE) FG_SetBiasDC(FG0, 0, NEGATIVE);
+	else FG_SetBiasDC(FG0, 0, POSITIVE);
+	FG_SetBiasDC(FG0, (uint16_t)(abs(FunctionGenerator.bias_A) * MAX_12BIT / 330), FunctionGenerator.bias_A_sign);
+	
+	if (FunctionGenerator.bias_A_sign == POSITIVE) FG_SetBiasDC(FG0, 0, NEGATIVE);
+	else FG_SetBiasDC(FG0, 0, POSITIVE);
+	FG_SetBiasDC(FG0, (uint16_t)(abs(FunctionGenerator.bias_A) * MAX_12BIT / 330), FunctionGenerator.bias_A_sign);
+	
+	LCD_SetContrast(LCD.contrast);
+	LCD_SetBrightness(LCD.brightness);
 }
+
+void Init_FG() {
+	FG_SetFunction(FG0, 0, OFF);
+	FG_SetFunction(FG1, 0, OFF);
+	FG_SetAmplitude(0, FG0);
+	FG_SetAmplitude(0, FG1);
+	FG_SetBiasDC(FG0, 0, NEGATIVE);
+	FG_SetBiasDC(FG0, 0, POSITIVE);
+	FG_SetBiasDC(FG1, 0, NEGATIVE);
+	FG_SetBiasDC(FG1, 0, POSITIVE);
+}
+
 
 int main() {
 	/* Testing definitions */
@@ -695,46 +746,43 @@ int main() {
 		while(1);
 	#endif
 	
+	Init_Device();
+	Init_UI();
+	Init_FG();
+
 	EncoderState encoderState = NONE;
 	bool switchState = false;
 	
+	static MainDeviceState mainDeviceState = PRIMARY_SCREENS;
+	static FGX FunctionGenerator;
+	
 	static Screen display;
 	static DisplayPointer displayPointer;
-	static bool parameterSelectionActivated = false;
-	static bool displayPointerActivated = false;
-	static bool functionalityChanged = false;
+	
 	static uint8_t buttonPressCounter = 0;
+	
 	static uint16_t prevBatVoltage = 0;
 	static bool prevAcPowerStatus = false;
-	static bool lcdParameterChanged = false;
+	
 	static bool lcdFunctionChanged = false;
-
-	Init_Device();
-	Init_UI();
 
 	/* Initialization sequence */
 	display.mainScreen = MAIN_SCREEN_A;
 	display.stateChanged = false;
 	buttonPressCounter = 0;
 	
-	Init_ClearWaveformValues();
+	Init_ClearWaveformValues(FunctionGenerator);
 	Init_ClearUIValues();
 	Init_ClearLCDParameterValues();
-	Handle_LCD(display.mainScreen, PTR_NULL, false, false, false);
-	_delay_ms(1500);
+	Handle_LCD(display.mainScreen, PTR_NULL, mainDeviceState, FunctionGenerator);
 	
 	while(1) {
-		
 		encoderState = Main_PollEncoder();
 		switchState = Main_PollSwitch();
 		
 		if (display.stateChanged) {
 			display.stateChanged = false;
-			Handle_LCD(display.mainScreen, displayPointer, displayPointerActivated, parameterSelectionActivated, lcdFunctionChanged);
-		}
-		if (functionalityChanged) {
-			functionalityChanged = false;
-			Handle_FunctionGenerator(displayPointer);
+			Handle_LCD(display.mainScreen, displayPointer, mainDeviceState, FunctionGenerator);
 		}
 		
 		if (lcdFunctionChanged) {
@@ -742,7 +790,7 @@ int main() {
 			Handle_LCDParameter(displayPointer);
 		}
 		
-		if (!displayPointerActivated && !parameterSelectionActivated) {
+		if (mainDeviceState == PRIMARY_SCREENS) {
 			switch(display.mainScreen) {
 				case MAIN_SCREEN_A:
 					if (encoderState == CW) {
@@ -755,8 +803,9 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = true;
+						mainDeviceState = MENU_POINTER_ON;
 						displayPointer = PTR_TYPE_A;
+						display.stateChanged = true;
 					}
 					break;
 					
@@ -771,8 +820,9 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = true;
+						mainDeviceState = MENU_POINTER_ON;
 						displayPointer = PTR_TYPE_B;
+						display.stateChanged = true;
 					}
 					break;
 					
@@ -787,16 +837,22 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = true;
+						mainDeviceState = MENU_POINTER_ON;
 						displayPointer = PTR_SETT;
 						display.stateChanged = true;
 					}
 					Power_UpdateAcStatus();
 					Power_UpdateBatteryStatus();
-					if ((PowerStatus.battery_voltage != prevBatVoltage) || (PowerStatus.ac_power_PowerStatus != prevAcPowerStatus)) display.stateChanged = true;
-					prevBatVoltage = PowerStatus.battery_voltage;
-					prevAcPowerStatus = PowerStatus.ac_power_PowerStatus;
-			
+					if ((PowerStatus.battery_voltage <  prevBatVoltage + 1) \
+					|| (PowerStatus.battery_voltage >  prevBatVoltage + 1)) {
+						display.stateChanged = true;
+						prevBatVoltage = PowerStatus.battery_voltage;
+					}
+					
+					if (PowerStatus.ac_power_PowerStatus != prevAcPowerStatus) {
+						display.stateChanged = true;
+						prevAcPowerStatus = PowerStatus.ac_power_PowerStatus;
+					}
 					break;	
 					
 				case PROFILE_SCREEN:
@@ -810,7 +866,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = true;
+						mainDeviceState = MENU_POINTER_ON;
 						displayPointer = PTR_SAVE_PROF;
 						display.stateChanged = true;
 					}
@@ -828,7 +884,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = true;
+						mainDeviceState = MENU_POINTER_ON;
 						displayPointer = PTR_BRIGHT;
 						display.stateChanged = true;
 					}
@@ -839,7 +895,7 @@ int main() {
 				
 			}
 		}
-		else if (displayPointerActivated && !parameterSelectionActivated) { 
+		else if (mainDeviceState == MENU_POINTER_ON) { 
 			switch(displayPointer) {
 				case PTR_NULL: break;
 				/* Channel A Block */
@@ -853,8 +909,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -868,8 +923,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -883,8 +937,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -898,8 +951,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -914,8 +966,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -929,8 +980,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -944,8 +994,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -959,8 +1008,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = true;
+						mainDeviceState = PARAMETER_POINTER_ON;
 						display.stateChanged = true;
 					}
 					break;
@@ -974,8 +1022,7 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						display.mainScreen = PROFILE_SCREEN;
 						display.stateChanged = true;
 					}
@@ -991,14 +1038,11 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
-						lcdParameterChanged = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 						display.stateChanged = true;
 						display.mainScreen = PARAMS_SCREEN;
-						EEPROM_SaveProfile();
+						EEPROM_SaveProfile(FunctionGenerator);
 						Buzzer_Beep();
 					}
 					break;
@@ -1013,17 +1057,32 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
-						lcdParameterChanged = false;
+						mainDeviceState = PRIMARY_SCREENS;
+						displayPointer = PTR_NULL;
+						display.stateChanged = true;
+						display.mainScreen = PROFILE_SCREEN;
+						EEPROM_LoadProfile(FunctionGenerator);
+						Buzzer_Beep();
+					}
+					break;	
+					
+				case PTR_BACK:
+					if (encoderState == CW) {
+						displayPointer = PTR_SAVE_PROF;
+						display.stateChanged = true;
+					}
+					else if (encoderState == CCW) {
+						displayPointer = PTR_LOAD_PROF;
+						display.stateChanged = true;
+					}
+					else if (switchState) {
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 						display.stateChanged = true;
 						display.mainScreen = PARAMS_SCREEN;
-						EEPROM_LoadProfile();
-						Buzzer_Beep();
+						
 					}
-					break;			
+					break;
 				
 				case PTR_BRIGHT:
 					if (encoderState == CW) {
@@ -1031,20 +1090,18 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (encoderState == CCW) {
-						displayPointer = PTR_BACK;
+						displayPointer = PTR_CONTR;
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = false;
+						mainDeviceState = PARAMETER_LCD_POINTER_ON;
 						display.stateChanged = true;
-						lcdParameterChanged = true;
 					}
 					break;
 				
 				case PTR_CONTR:
 					if (encoderState == CW) {
-						displayPointer = PTR_BACK;
+						displayPointer = PTR_BRIGHT;
 						display.stateChanged = true;
 					}
 					else if (encoderState == CCW) {
@@ -1052,10 +1109,8 @@ int main() {
 						display.stateChanged = true;
 					}
 					else if (switchState) {
-						displayPointerActivated = false;
-						parameterSelectionActivated = false;
+						mainDeviceState = PARAMETER_LCD_POINTER_ON;
 						display.stateChanged = true;
-						lcdParameterChanged = true;
 					}
 					break;
 												
@@ -1071,20 +1126,10 @@ int main() {
 					else if (switchState) Main_ShutdownDevice(false);
 					break;
 					
-				case PTR_BACK: 
-					parameterSelectionActivated = false;
-					functionalityChanged = false;
-					displayPointerActivated = false;
-					lcdParameterChanged = false;
-					displayPointer = PTR_NULL;
-					display.stateChanged = true;
-					display.mainScreen = PARAMS_SCREEN;
-					break;
-					
 				default: break;
 			}
 		}
-		else if (!displayPointerActivated && parameterSelectionActivated) {
+		else if (mainDeviceState == PARAMETER_POINTER_ON) {
 			switch(displayPointer) {
 				
 				case PTR_NULL: break;
@@ -1092,7 +1137,6 @@ int main() {
 				case PTR_TYPE_A:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					switch(FunctionGenerator.output_type_A) {
 						case OFF: FunctionGenerator.output_type_A = SINE; break;
 						case SINE: FunctionGenerator.output_type_A = TRIANGLE; break;
@@ -1100,10 +1144,10 @@ int main() {
 						case SQUARE: FunctionGenerator.output_type_A = DC; break;
 						case DC: default: FunctionGenerator.output_type_A = OFF; break;
 					}
+					FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A);
 				}
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					switch(FunctionGenerator.output_type_A) {
 						case OFF: FunctionGenerator.output_type_A = DC; break;
 						case SINE: FunctionGenerator.output_type_A = OFF; break;
@@ -1111,12 +1155,11 @@ int main() {
 						case SQUARE: FunctionGenerator.output_type_A = TRIANGLE; break;
 						case DC: default: FunctionGenerator.output_type_A = SQUARE; break;
 					}
+					FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A);
 				}
 				
 				else if (switchState) {
-					parameterSelectionActivated = false;
-					functionalityChanged = false;
-					displayPointerActivated = false;
+					mainDeviceState = PRIMARY_SCREENS;
 					display.stateChanged = true;
 					displayPointer = PTR_NULL;
 				}
@@ -1126,7 +1169,6 @@ int main() {
 				case PTR_AMP_A:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.amplitude_A >= 70) FunctionGenerator.amplitude_A = 70;
 					else {
 						switch(buttonPressCounter) {
@@ -1134,10 +1176,10 @@ int main() {
 							case 1: FunctionGenerator.amplitude_A += 10; break;
 						}
 					}
+					FG_SetAmplitude(FunctionGenerator.amplitude_A * 58.5, FG0);
 				}
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.amplitude_A <= 0) FunctionGenerator.amplitude_A = 0;
 					else {
 						switch(buttonPressCounter) {
@@ -1145,15 +1187,14 @@ int main() {
 							case 1: FunctionGenerator.amplitude_A -= 10; break;
 						}
 					}
+					FG_SetAmplitude(FunctionGenerator.amplitude_A * 58.5, FG0);
 				}
 				
 				else if (switchState) {
 					if (buttonPressCounter < 1) buttonPressCounter++;
 					else {
 						buttonPressCounter = 0;
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 					}
 					display.stateChanged = true;
@@ -1163,7 +1204,6 @@ int main() {
 				case PTR_FREQ_A:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.frequency_A >= 1000000) FunctionGenerator.frequency_A = 1000000;
 					else {
 						switch(buttonPressCounter) {
@@ -1175,10 +1215,11 @@ int main() {
 							case 5: FunctionGenerator.frequency_A += 100000; break;
 						}
 					}
+					FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A);
 				}
+				
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.frequency_A <= 0) FunctionGenerator.frequency_A = 0;
 					else {
 						switch(buttonPressCounter) {
@@ -1190,17 +1231,16 @@ int main() {
 							case 5: FunctionGenerator.frequency_A -= 100000; break;
 						}
 					}
+					FG_SetFunction(FG0, FunctionGenerator.frequency_A, FunctionGenerator.output_type_A);
 				}
 				
 				else if (switchState) {
 					if (buttonPressCounter < 5) buttonPressCounter++;
 					else {
 						buttonPressCounter = 0;
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
-					}
+				}
 					display.stateChanged = true;
 				}
 				break;
@@ -1208,62 +1248,47 @@ int main() {
 				case PTR_BIAS_A:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
-					if (FunctionGenerator.bias_A_sign == POSITIVE) {
-						if (FunctionGenerator.bias_A >= 330) FunctionGenerator.bias_A = 330;
-						else {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_A++; break;
-								case 1: FunctionGenerator.bias_A += 10; break;
-								case 2: FunctionGenerator.bias_A += 100; break;
-							}
-						}
-					}		
+					if (FunctionGenerator.bias_A < 0) FunctionGenerator.bias_A_sign = NEGATIVE;
+					else FunctionGenerator.bias_A_sign = POSITIVE;
 					
-					else if (FunctionGenerator.bias_A_sign == NEGATIVE) {
-						if (FunctionGenerator.bias_A >= 0) FunctionGenerator.bias_A_sign = POSITIVE;
-						else {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_A--; break;
-								case 1: FunctionGenerator.bias_A -= 10; break;
-								case 2: FunctionGenerator.bias_A -= 100; break;
-							}
+					if (FunctionGenerator.bias_A >= 330) FunctionGenerator.bias_A = 330;
+					else {
+						switch(buttonPressCounter) {
+							case 0: FunctionGenerator.bias_A++; break;
+							case 1: FunctionGenerator.bias_A += 10; break;
+							case 2: FunctionGenerator.bias_A += 100; break;
 						}
 					}
+					
+					if (FunctionGenerator.bias_A_sign == POSITIVE) FG_SetBiasDC(FG0, 0, NEGATIVE);
+					else FG_SetBiasDC(FG0, 0, POSITIVE);
+					FG_SetBiasDC(FG0, (uint16_t)(abs(FunctionGenerator.bias_A) * 12.4), FunctionGenerator.bias_A_sign);
 				}
 				
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
-					if (FunctionGenerator.bias_A_sign == NEGATIVE) {
-						if (FunctionGenerator.bias_A >= 330) FunctionGenerator.bias_A = 330;
-						else {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_A++; break;
-								case 1: FunctionGenerator.bias_A += 10; break;
-								case 2: FunctionGenerator.bias_A += 100; break;
-							}
+					if (FunctionGenerator.bias_A < 0) FunctionGenerator.bias_A_sign = NEGATIVE;
+					else FunctionGenerator.bias_A_sign = POSITIVE;
+					
+					if (FunctionGenerator.bias_A <= -330) FunctionGenerator.bias_A = -330;
+					else {
+						switch(buttonPressCounter) {
+							case 0: FunctionGenerator.bias_A--; break;
+							case 1: FunctionGenerator.bias_A -= 10; break;
+							case 2: FunctionGenerator.bias_A -= 100; break;
 						}
 					}
-					else if (FunctionGenerator.bias_A_sign == POSITIVE) {
-						if (FunctionGenerator.bias_A <= 0) FunctionGenerator.bias_A_sign = POSITIVE;
-						else  {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_A--; break;
-								case 1: FunctionGenerator.bias_A -= 10; break;
-								case 2: FunctionGenerator.bias_A -= 100; break;
-							}
-						}
-					}
+					
+					if (FunctionGenerator.bias_A_sign == POSITIVE) FG_SetBiasDC(FG0, 0, NEGATIVE);
+					else FG_SetBiasDC(FG0, 0, POSITIVE);
+					FG_SetBiasDC(FG0, (uint16_t)(abs(FunctionGenerator.bias_A) * 12.4), FunctionGenerator.bias_A_sign);
 				}
 				
 				else if (switchState) {
 					if (buttonPressCounter < 2) buttonPressCounter++;
 					else {
 						buttonPressCounter = 0;
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 					}
 					display.stateChanged = true;
@@ -1273,7 +1298,6 @@ int main() {
 				case PTR_TYPE_B:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					switch(FunctionGenerator.output_type_B) {
 						case OFF: FunctionGenerator.output_type_B = SINE; break;
 						case SINE: FunctionGenerator.output_type_B = TRIANGLE; break;
@@ -1281,10 +1305,10 @@ int main() {
 						case SQUARE: FunctionGenerator.output_type_B = DC; break;
 						case DC: default: FunctionGenerator.output_type_B = OFF; break;
 					}
+					FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B);
 				}
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					switch(FunctionGenerator.output_type_B) {
 						case OFF: FunctionGenerator.output_type_B = DC; break;
 						case SINE: FunctionGenerator.output_type_B = OFF; break;
@@ -1292,12 +1316,11 @@ int main() {
 						case SQUARE: FunctionGenerator.output_type_B = TRIANGLE; break;
 						case DC: default: FunctionGenerator.output_type_B = SQUARE; break;
 					}
+					FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B);
 				}
 				
 				else if (switchState) {
-					parameterSelectionActivated = false;
-					functionalityChanged = false;
-					displayPointerActivated = false;
+					mainDeviceState = PRIMARY_SCREENS;
 					display.stateChanged = true;
 					displayPointer = PTR_NULL;
 				}
@@ -1307,7 +1330,6 @@ int main() {
 				case PTR_AMP_B:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.amplitude_B >= 70) FunctionGenerator.amplitude_B = 70;
 					else {
 						switch(buttonPressCounter) {
@@ -1315,10 +1337,10 @@ int main() {
 							case 1: FunctionGenerator.amplitude_B += 10; break;
 						}
 					}
+					FG_SetAmplitude(FunctionGenerator.amplitude_B * 58.5, FG1);
 				}
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.amplitude_B <= 0) FunctionGenerator.amplitude_B = 0;
 					else {
 						switch(buttonPressCounter) {
@@ -1326,15 +1348,14 @@ int main() {
 							case 1: FunctionGenerator.amplitude_B -= 10; break;
 						}
 					}
+					FG_SetAmplitude(FunctionGenerator.amplitude_B * 58.5, FG1);
 				}
 				
 				else if (switchState) {
 					if (buttonPressCounter < 1) buttonPressCounter++;
 					else {
 						buttonPressCounter = 0;
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 					}
 					display.stateChanged = true;
@@ -1345,7 +1366,6 @@ int main() {
 				case PTR_FREQ_B:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.frequency_B >= 1000000) FunctionGenerator.frequency_B = 1000000;
 					else {
 						switch(buttonPressCounter) {
@@ -1358,10 +1378,10 @@ int main() {
 							default: break;
 						}
 					}
+					FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B);									
 				}
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
 					if (FunctionGenerator.frequency_B <= 0) FunctionGenerator.frequency_B = 0;
 					else {
 						switch(buttonPressCounter) {
@@ -1374,15 +1394,14 @@ int main() {
 							default: break;
 						}
 					}
+					FG_SetFunction(FG1, FunctionGenerator.frequency_B, FunctionGenerator.output_type_B);
 				}
 					
 				else if (switchState) {
 					if (buttonPressCounter < 5) buttonPressCounter++;
 					else {
 						buttonPressCounter = 0;
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 					}
 					display.stateChanged = true;
@@ -1392,63 +1411,49 @@ int main() {
 				case PTR_BIAS_B:
 				if (encoderState == CW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
-					if (FunctionGenerator.bias_B_sign == POSITIVE) {
-						if (FunctionGenerator.bias_B >= 330) FunctionGenerator.bias_B = 330;
-						else {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_B++; break;
-								case 1: FunctionGenerator.bias_B += 10; break;
-								case 2: FunctionGenerator.bias_B += 100; break;
-								default: break;
-							}
+					if (FunctionGenerator.bias_B < 0) FunctionGenerator.bias_B_sign = NEGATIVE;
+					else FunctionGenerator.bias_B_sign = POSITIVE;
+					
+					if (FunctionGenerator.bias_B >= 330) FunctionGenerator.bias_B = 330;
+					else {
+						switch(buttonPressCounter) {
+							case 0: FunctionGenerator.bias_B++; break;
+							case 1: FunctionGenerator.bias_B += 10; break;
+							case 2: FunctionGenerator.bias_B += 100; break;
+							default: break;
 						}
 					}
-					else if (FunctionGenerator.bias_B_sign == NEGATIVE) {
-						if (FunctionGenerator.bias_B >= 0) FunctionGenerator.bias_B_sign = POSITIVE;
-						else {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_B--; break;
-								case 1: FunctionGenerator.bias_B -= 10; break;
-								case 2: FunctionGenerator.bias_B -= 100; break;
-								default: break;
-							}
-						}
-					}
+					
+					if (FunctionGenerator.bias_B_sign == POSITIVE) FG_SetBiasDC(FG1, 0, NEGATIVE);
+					else FG_SetBiasDC(FG1, 0, POSITIVE);
+					FG_SetBiasDC(FG1, (uint16_t)(abs(FunctionGenerator.bias_B) * 12.4), FunctionGenerator.bias_B_sign);
+					
 				}
 							
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
-					functionalityChanged = true;
-					if (FunctionGenerator.bias_B_sign == NEGATIVE) {
-						if (FunctionGenerator.bias_B >= 330) FunctionGenerator.bias_B = 330;
+					if (FunctionGenerator.bias_B < 0) FunctionGenerator.bias_B_sign = NEGATIVE;
+					else FunctionGenerator.bias_B_sign = POSITIVE;
+					
+						if (FunctionGenerator.bias_B <= -330) FunctionGenerator.bias_B = -330;
 						else {
-							switch(buttonPressCounter) {
-								case 0: FunctionGenerator.bias_B++; break;
-								case 1: FunctionGenerator.bias_B += 10; break;
-								case 2: FunctionGenerator.bias_B += 100; break;
-							}
-						}
-					}
-					else if (FunctionGenerator.bias_B_sign == POSITIVE) {
-						if (FunctionGenerator.bias_B <= 0) FunctionGenerator.bias_B_sign = POSITIVE;
-						else  {
 							switch(buttonPressCounter) {
 								case 0: FunctionGenerator.bias_B--; break;
 								case 1: FunctionGenerator.bias_B -= 10; break;
 								case 2: FunctionGenerator.bias_B -= 100; break;
 							}
 						}
-					}
+
+					if (FunctionGenerator.bias_B_sign == POSITIVE) FG_SetBiasDC(FG1, 0, NEGATIVE);
+					else FG_SetBiasDC(FG1, 0, POSITIVE);
+					FG_SetBiasDC(FG1, (uint16_t)(abs(FunctionGenerator.bias_B) * 12.4), FunctionGenerator.bias_B_sign);
 				}
 						
 				else if (switchState) {
 					if (buttonPressCounter < 2) buttonPressCounter++;
 					else {
 						buttonPressCounter = 0;
-						parameterSelectionActivated = false;
-						functionalityChanged = false;
-						displayPointerActivated = false;
+						mainDeviceState = PRIMARY_SCREENS;
 						displayPointer = PTR_NULL;
 					}
 					display.stateChanged = true;
@@ -1456,10 +1461,7 @@ int main() {
 				break;
 				
 				case PTR_BACK:
-				parameterSelectionActivated = false;
-				functionalityChanged = false;
-				displayPointerActivated = false;
-				lcdParameterChanged = false;
+				mainDeviceState = PRIMARY_SCREENS;
 				displayPointer = PTR_NULL;
 				display.stateChanged = true;
 				display.mainScreen = PARAMS_SCREEN;
@@ -1467,7 +1469,7 @@ int main() {
 				
 				default: break;			}
 		}
-		else if (lcdParameterChanged) {
+		else if (PARAMETER_LCD_POINTER_ON) {
 			switch(displayPointer) {
 				case PTR_BRIGHT:
 				if (encoderState == CW) {
@@ -1484,10 +1486,7 @@ int main() {
 				}
 				
 				else if (switchState) {
-					parameterSelectionActivated = false;
-					functionalityChanged = false;
-					displayPointerActivated = false;
-					lcdParameterChanged = false;
+					mainDeviceState = PRIMARY_SCREENS;
 					displayPointer = PTR_NULL;
 					display.stateChanged = true;
 				}
@@ -1498,7 +1497,7 @@ int main() {
 					display.stateChanged = true;
 					lcdFunctionChanged = true;
 					if (LCD.contrast >= 100) LCD.contrast = 100;
-					else LCD.brightness++;
+					else LCD.contrast++;
 				}
 				else if (encoderState == CCW) {
 					display.stateChanged = true;
@@ -1508,20 +1507,14 @@ int main() {
 				}
 				
 				else if (switchState) {
-					parameterSelectionActivated = false;
-					functionalityChanged = false;
-					displayPointerActivated = false;
-					lcdParameterChanged = false;
+					mainDeviceState = PRIMARY_SCREENS;
 					displayPointer = PTR_NULL;
 					display.stateChanged = true;
 				}
 				break;
 				
 				case PTR_BACK:
-				parameterSelectionActivated = false;
-				functionalityChanged = false;
-				displayPointerActivated = false;
-				lcdParameterChanged = false;
+				mainDeviceState = PRIMARY_SCREENS;
 				displayPointer = PTR_NULL;
 				display.stateChanged = true;
 				display.mainScreen = PARAMS_SCREEN;
